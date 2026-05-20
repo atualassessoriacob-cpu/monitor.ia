@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor.IA — Atual Assessoria</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<div id="loginScreen" class="login-screen">
+    <div class="login-card">
+        <div class="login-logo">
+            <img src="logo.png" class="logo-atual logo-login" alt="Atual Assessoria">
+            <h1>Monitor<span class="accent">.IA</span></h1>
+            <p class="login-subtitle">Atual Assessoria de Cobrança</p>
+        </div>
+        <div class="login-form">
+            <div class="input-group">
+                <span class="material-icons-round input-icon">person</span>
+                <input type="text" id="loginUser" placeholder="Usuário" autocomplete="off">
+            </div>
+            <div class="input-group">
+                <span class="material-icons-round input-icon">lock</span>
+                <input type="password" id="loginPass" placeholder="Senha" autocomplete="off">
+            </div>
+            <div id="loginError" class="login-error" style="display:none;">Usuário ou senha incorretos.</div>
+            <button class="btn-login" onclick="doLogin()">Entrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== APP ===== -->
+<div id="appContainer" class="app-container" style="display:none;">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <img src="logo.png" class="logo-atual logo-topo" alt="Atual Assessoria">
+            <h2 class="sidebar-title">Monitor<span class="accent">.IA</span></h2>
+        </div>
+        <nav class="sidebar-nav">
+            <button class="nav-btn active" data-tab="visaoGeral" onclick="switchTab('visaoGeral')">
+                <span class="material-icons-round">dashboard</span><span>Visão Geral</span>
+            </button>
+            <button class="nav-btn" data-tab="avaliacoes" onclick="switchTab('avaliacoes')">
+                <span class="material-icons-round">assignment</span><span>Avaliações</span>
+            </button>
+            <button class="nav-btn" data-tab="evolucao" onclick="switchTab('evolucao')">
+                <span class="material-icons-round">trending_up</span><span>Evolução</span>
+            </button>
+            <button class="nav-btn" data-tab="operadores" onclick="switchTab('operadores')">
+                <span class="material-icons-round">people</span><span>Operadores</span>
+            </button>
+            <button class="nav-btn" data-tab="calibragem" onclick="switchTab('calibragem')">
+                <span class="material-icons-round">tune</span><span>Calibragem</span>
+            </button>
+            <button class="nav-btn" data-tab="relatorios" onclick="switchTab('relatorios')">
+                <span class="material-icons-round">description</span><span>Relatórios</span>
+            </button>
+            <button class="nav-btn" data-tab="configuracoes" onclick="switchTab('configuracoes')">
+                <span class="material-icons-round">settings</span><span>Configurações</span>
+            </button>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="sidebar-user" id="sidebarUser"></div>
+            <button class="btn-logout" onclick="doLogout()">
+                <span class="material-icons-round">logout</span><span>Sair</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main-content">
+        <header class="top-header">
+            <button class="menu-toggle" onclick="toggleSidebar()">
+                <span class="material-icons-round">menu</span>
+            </button>
+            <div class="header-info">
+                <span id="headerDate" class="header-date"></span>
+                <span id="headerClock" class="header-clock"></span>
+            </div>
+            <div class="header-user">
+                <span class="material-icons-round">account_circle</span>
+                <span id="headerUserName"></span>
+            </div>
+        </header>
+
+        <!-- TAB: VISÃO GERAL -->
+        <section id="tab-visaoGeral" class="tab-content active">
+            <div class="tab-header"><h2>Visão Geral</h2><p id="visaoGeralDatetime" class="tab-subtitle"></p></div>
+            <div class="kpi-grid" id="kpiGrid"></div>
+            <div class="charts-row">
+                <div class="chart-card"><h3>Progresso Semanal</h3><canvas id="chartSemanal"></canvas></div>
+                <div class="chart-card"><h3>Distribuição de Status</h3><canvas id="chartStatus"></canvas></div>
+            </div>
+        </section>
+
+        <!-- TAB: AVALIAÇÕES -->
+        <section id="tab-avaliacoes" class="tab-content">
+            <div class="tab-header"><h2>Avaliações</h2><p class="tab-subtitle">Operadores programados para hoje</p></div>
+            <div class="avaliacoes-layout">
+                <div class="avaliacoes-dashboard" id="avalDashboard"></div>
+                <div class="avaliacoes-list" id="avalList"></div>
+            </div>
+        </section>
+
+        <!-- TAB: EVOLUÇÃO -->
+        <section id="tab-evolucao" class="tab-content">
+            <div class="tab-header"><h2>Evolução</h2><p class="tab-subtitle">Acompanhamento semanal</p></div>
+            <div class="evolucao-content" id="evolucaoContent"></div>
+        </section>
+
+        <!-- TAB: OPERADORES -->
+        <section id="tab-operadores" class="tab-content">
+            <div class="tab-header"><h2>Operadores</h2><p class="tab-subtitle">Lista completa e status de avaliação</p></div>
+            <div class="operadores-grid" id="operadoresGrid"></div>
+        </section>
+
+        <!-- TAB: CALIBRAGEM -->
+        <section id="tab-calibragem" class="tab-content">
+            <div class="tab-header"><h2>Calibragem</h2><p class="tab-subtitle">Distribuição e calibração das notas</p></div>
+            <div class="calibragem-content" id="calibragemContent">
+                <div class="chart-card full-width"><h3>Distribuição de Notas</h3><canvas id="chartCalibragem"></canvas></div>
+                <div class="calibragem-table-wrapper" id="calibragemTable"></div>
+            </div>
+        </section>
+
+        <!-- TAB: RELATÓRIOS -->
+        <section id="tab-relatorios" class="tab-content">
+            <div class="tab-header"><h2>Relatórios</h2><p class="tab-subtitle">Geração de relatórios em PDF</p></div>
+            <div class="relatorios-grid">
+                <div class="relatorio-card" onclick="gerarRelatorioMensalGeral()"><span class="material-icons-round relatorio-icon">summarize</span><h3>Relatório Mensal Geral</h3><p>Visão consolidada de todas as avaliações do mês.</p><span class="btn-gerar">Gerar PDF</span></div>
+                <div class="relatorio-card" onclick="gerarRelatorioPendencias()"><span class="material-icons-round relatorio-icon">pending_actions</span><h3>Relatório de Pendências</h3><p>Lista de avaliações pendentes no mês.</p><span class="btn-gerar">Gerar PDF</span></div>
+                <div class="relatorio-card" onclick="gerarRelatorioPorOperador()"><span class="material-icons-round relatorio-icon">person_search</span><h3>Relatório por Operador</h3><p>Detalhamento individual de cada operador.</p><span class="btn-gerar">Gerar PDF</span></div>
+                <div class="relatorio-card" onclick="gerarRelatorioPorTurno()"><span class="material-icons-round relatorio-icon">schedule</span><h3>Relatório por Turno</h3><p>Avaliações agrupadas por turno.</p><span class="btn-gerar">Gerar PDF</span></div>
+                <div class="relatorio-card" onclick="gerarRelatorioFechamento()"><span class="material-icons-round relatorio-icon">lock_clock</span><h3>Fechamento do Mês</h3><p>Consolidação final do mês atual.</p><span class="btn-gerar">Gerar PDF</span></div>
+                <div class="relatorio-card" onclick="gerarRelatorioHistorico()"><span class="material-icons-round relatorio-icon">history</span><h3>Histórico de Meses</h3><p>Dados consolidados de meses anteriores.</p><span class="btn-gerar">Gerar PDF</span></div>
+            </div>
+        </section>
+
+        <!-- TAB: CONFIGURAÇÕES -->
+        <section id="tab-configuracoes" class="tab-content">
+            <div class="tab-header"><h2>Configurações</h2><p class="tab-subtitle">Gerenciamento do sistema</p></div>
+            <div class="config-content" id="configContent"></div>
+        </section>
+    </main>
+</div>
+
+<!-- ===== MODAL ===== -->
+<div id="modalOverlay" class="modal-overlay" style="display:none;" onclick="fecharModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 id="modalTitle">Modal</h3>
+            <button class="modal-close" onclick="fecharModal()"><span class="material-icons-round">close</span></button>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+    </div>
+</div>
+
+<!-- NOTA: Este sistema usa localStorage. Cada navegador/dispositivo mantém seus próprios dados.
+     Ao compartilhar com a equipe, cada pessoa terá dados independentes no seu navegador.
+     Não há backend ou banco de dados — tudo roda localmente. -->
+
+<script src="script.js"></script>
+</body>
+</html>
