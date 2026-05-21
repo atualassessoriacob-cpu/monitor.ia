@@ -182,16 +182,26 @@ function checkAdmin(msg){
     if(!isAdmin()){alert(msg||"Acesso restrito ao administrador.");return false}
     return true;
 }
+/* Verifica se o usuário logado pode gerenciar operadores (todos os cargos) */
+function podeGerenciarOperadores(){
+    var u=getLoggedUser();
+    if(!u)return false;
+    return CARGOS_VALIDOS.indexOf(u.cargo)!==-1;
+}
+function checkOperadorPermission(msg){
+    if(!podeGerenciarOperadores()){alert(msg||"Acesso restrito.");return false}
+    return true;
+}
 /* Verifica se o cargo do usuário logado permite uma ação */
 function cargoPermite(acao){
     var u=getLoggedUser();
     if(!u)return false;
     var cargo=u.cargo||"Monitor";
     var permissoes={
-        "Administrador":["addUser","editUser","removeUser","alterarSenha","alterarCargo","configuracoes","avaliacoes","lancarNota","relatorios","dashboards","operadores"],
-        "Coordenador":["visualizarUsers","relatorios","dashboards","avaliacoes","operadores"],
-        "Supervisor":["avaliacoes","lancarNota","relatorios","operadores"],
-        "Monitor":["avaliacoes","lancarNota"]
+        "Administrador":["addUser","editUser","removeUser","alterarSenha","alterarCargo","configuracoes","avaliacoes","lancarNota","relatorios","dashboards","operadores","addOperador","editOperador","removeOperador"],
+        "Coordenador":["visualizarUsers","relatorios","dashboards","avaliacoes","operadores","addOperador","editOperador","removeOperador"],
+        "Supervisor":["avaliacoes","lancarNota","relatorios","operadores","addOperador","editOperador","removeOperador"],
+        "Monitor":["avaliacoes","lancarNota","operadores","addOperador","editOperador","removeOperador"]
     };
     var p=permissoes[cargo]||[];
     return p.indexOf(acao)!==-1;
@@ -433,10 +443,10 @@ function ajustarNavPorCargo(){
         "visaoGeral":["Administrador","Coordenador","Supervisor","Monitor"],
         "avaliacoes":["Administrador","Coordenador","Supervisor","Monitor"],
         "evolucao":["Administrador","Coordenador","Supervisor"],
-        "operadores":["Administrador","Coordenador","Supervisor"],
+        "operadores":["Administrador","Coordenador","Supervisor","Monitor"],
         "calibragem":["Administrador","Coordenador","Supervisor"],
         "relatorios":["Administrador","Coordenador","Supervisor"],
-        "configuracoes":["Administrador","Coordenador"]
+        "configuracoes":["Administrador","Coordenador","Supervisor","Monitor"]
     };
     var navBtns=qsa(".nav-btn");
     for(var i=0;i<navBtns.length;i++){
@@ -981,8 +991,8 @@ function renderConfiguracoes(){
     }
     /* Supervisor e Monitor: NÃO veem seção de usuários */
 
-    /* OPERADORES — Admin e Coordenador podem ver, Admin pode editar */
-    if(ehAdmin){
+    /* OPERADORES — Todos os cargos podem gerenciar operadores */
+    if(podeGerenciarOperadores()){
         html+='<div class="config-section"><h3><span class="material-icons-round">people</span> Operadores</h3>';
         html+='<p>Adicione, edite ou remova operadores. Alterações refletem em todo o sistema.</p>';
         html+='<div class="config-toolbar"><button class="btn-primary" onclick="modalAddOperador()"><span class="material-icons-round" style="font-size:18px">person_add</span> Adicionar Operador</button></div>';
@@ -997,14 +1007,6 @@ function renderConfiguracoes(){
         }
         if(ops.length===0)html+='<p style="color:var(--text-muted);font-size:12px">Nenhum operador cadastrado.</p>';
         html+='</div></div>';
-    }else if(cargoLogado==="Coordenador"){
-        html+='<div class="config-section"><h3><span class="material-icons-round">people</span> Operadores</h3>';
-        html+='<p>Lista de operadores cadastrados (somente leitura).</p>';
-        for(var i=0;i<ops.length;i++){
-            html+='<div class="cfg-row"><div class="cfg-row-info"><div class="cfg-row-name">'+ops[i].nome+'</div><div class="cfg-row-sub">'+ops[i].turno+' · '+(ops[i].carteira||"—")+'</div></div></div>';
-        }
-        if(ops.length===0)html+='<p style="color:var(--text-muted);font-size:12px">Nenhum operador cadastrado.</p>';
-        html+='</div>';
     }
 
     /* HISTÓRICO */
@@ -1143,7 +1145,7 @@ function removerUsuario(idx){
 
 /* CONFIG: OPERADORES */
 function modalAddOperador(){
-    if(!checkAdmin())return;
+    if(!checkOperadorPermission())return;
     abrirModal("Adicionar Operador",
         '<div class="field-group"><label>Nome do Operador</label><input type="text" id="mOpNome" placeholder="Nome completo"></div>'+
         '<div class="field-group"><label>Turno</label><select id="mOpTurno"><option value="Manhã">Manhã</option><option value="Tarde">Tarde</option></select></div>'+
@@ -1151,7 +1153,7 @@ function modalAddOperador(){
         '<button class="btn-primary" onclick="salvarNovoOp()">Adicionar</button>');
 }
 function salvarNovoOp(){
-    if(!checkAdmin())return;
+    if(!checkOperadorPermission())return;
     var nome=ge("mOpNome").value.trim().toUpperCase(),turno=ge("mOpTurno").value,carteira=ge("mOpCarteira").value.trim()||"AEGEA";
     if(!nome)return;
     var ops=loadOperadores();
@@ -1159,7 +1161,7 @@ function salvarNovoOp(){
     ops.push({nome:nome,turno:turno,carteira:carteira});saveOperadores(ops);fecharModal();syncAfterOpChange();
 }
 function modalEditarOperador(idx){
-    if(!checkAdmin())return;
+    if(!checkOperadorPermission())return;
     var ops=loadOperadores(),op=ops[idx];if(!op)return;
     abrirModal("Editar Operador",
         '<div class="field-group"><label>Nome</label><input type="text" id="mEdNome" value="'+op.nome+'" readonly style="opacity:.6"></div>'+
@@ -1168,21 +1170,21 @@ function modalEditarOperador(idx){
         '<button class="btn-primary" onclick="salvarEditOp('+idx+')">Salvar</button>');
 }
 function salvarEditOp(idx){
-    if(!checkAdmin())return;
+    if(!checkOperadorPermission())return;
     var ops=loadOperadores();
     ops[idx].turno=ge("mEdTurno").value;
     ops[idx].carteira=ge("mEdCarteira").value.trim()||"AEGEA";
     saveOperadores(ops);fecharModal();syncAfterOpChange();
 }
 function confirmarRemoverOp(nome){
-    if(!checkAdmin())return;
+    if(!checkOperadorPermission())return;
     abrirModal("Remover Operador",
         '<p style="margin-bottom:16px;color:var(--text-secondary)">Remover <strong style="color:var(--text-primary)">'+nome+'</strong>?</p>'+
         '<p style="margin-bottom:16px;color:var(--text-muted);font-size:12px">As avaliações vinculadas a este operador também serão removidas.</p>'+
         '<button class="btn-primary" style="background:var(--danger)" onclick="removerOp(\''+nome.replace(/'/g,"\\'")+'\')">Confirmar Remoção</button>');
 }
 function removerOp(nome){
-    if(!checkAdmin()){fecharModal();return}
+    if(!checkOperadorPermission()){fecharModal();return}
     var ops=loadOperadores();ops=ops.filter(function(o){return o.nome!==nome});saveOperadores(ops);
     /* Remove avaliações vinculadas ao operador SOMENTE no mês atual */
     var md=getMonthData();
