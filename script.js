@@ -691,7 +691,7 @@ function renderAvaliacoes(){
         var avalInfo=(!isPend&&avaliador)?'<span><span class="material-icons-round">person</span>'+avaliador+'</span>':"";
         html+='<div class="aval-card" data-avaliador="'+avaliador+'" data-pode-ver="'+(podeVer?"1":"0")+'" id="avalCard_'+i+'">'+
             '<div class="aval-card-header"><span class="aval-card-name">'+nome+'</span><div class="aval-card-header-right">'+eyeBtn+'<span class="aval-card-badge '+bc+'">'+bt+'</span></div></div>'+
-            '<div class="aval-card-info"><span><span class="material-icons-round">schedule</span>'+turno+'</span><span><span class="material-icons-round">work</span>'+carteira+'</span><span><span class="material-icons-round">calendar_today</span>'+today+'</span>'+avalInfo+'</div>'+
+            '<div class="aval-card-info"><span><span class="material-icons-round">work</span>'+carteira+'</span><span><span class="material-icons-round">schedule</span>'+turno+'</span><span><span class="material-icons-round">calendar_today</span>'+today+'</span>'+avalInfo+'</div>'+
             '<div class="aval-card-fields" id="avalFields_'+i+'"'+fieldDisabled+'>'+
             '<div class="field-row"><label>Nota (0-100)</label><input type="number" min="0" max="100" id="nota_'+i+'" value="'+notaVal+'"'+((!isPend&&!podeVer)?" readonly":"")+'></div>'+
             '<div class="field-row"><label>Ponto de Atenção</label><textarea id="obs_'+i+'"'+((!isPend&&!podeVer)?" readonly":"")+'>'+obsVal+'</textarea></div></div>'+
@@ -791,62 +791,222 @@ function renderEvolucao(){
     ge("evolucaoContent").innerHTML=html||'<p style="color:var(--text-muted)">Nenhuma semana.</p>';
 }
 
-/* ======= RENDER: OPERADORES ======= */
+/* ======= RENDER: OPERADORES (COM PAGINAÇÃO) ======= */
+var _opsPage=1;
+var _opsPerPage=10;
+var _opsSearch="";
 function renderOperadores(){
     var ops=loadOperadores(),slots=countSlotsByOp();
+    /* Filtrar por busca */
+    var filtered=ops;
+    if(_opsSearch){
+        var term=_opsSearch.toUpperCase();
+        filtered=ops.filter(function(o){
+            return o.nome.toUpperCase().indexOf(term)!==-1||
+                   (o.carteira||"").toUpperCase().indexOf(term)!==-1||
+                   o.turno.toUpperCase().indexOf(term)!==-1;
+        });
+    }
+    /* Toolbar: busca + seletor por página */
+    var toolbarHtml='<input type="text" class="ops-search" id="opsSearchInput" placeholder="Buscar operador, carteira ou turno..." value="'+(_opsSearch||"")+'" oninput="opsSearchChange(this.value)">';
+    toolbarHtml+='<div class="ops-per-page"><span>Exibir:</span><select id="opsPerPageSelect" onchange="opsPerPageChange(this.value)">';
+    var perPageOpts=[10,20,50,0];
+    var perPageLabels=["10","20","50","Todos"];
+    for(var p=0;p<perPageOpts.length;p++){
+        toolbarHtml+='<option value="'+perPageOpts[p]+'"'+(perPageOpts[p]===_opsPerPage?' selected':'')+'>'+perPageLabels[p]+'</option>';
+    }
+    toolbarHtml+='</select></div>';
+    ge("operadoresToolbar").innerHTML=toolbarHtml;
+    /* Paginação */
+    var total=filtered.length;
+    var perPage=_opsPerPage===0?total:_opsPerPage;
+    if(perPage<1)perPage=total||1;
+    var totalPages=Math.max(1,Math.ceil(total/perPage));
+    if(_opsPage>totalPages)_opsPage=totalPages;
+    if(_opsPage<1)_opsPage=1;
+    var startIdx=((_opsPage-1)*perPage);
+    var endIdx=Math.min(startIdx+perPage,total);
+    var pageOps=filtered.slice(startIdx,endIdx);
+    /* Render cards */
     var colors=["#6c5ce7","#00cec9","#fdcb6e","#74b9ff","#ff6b6b","#a29bfe","#55efc4","#fab1a0"];
     var html="";
-    for(var i=0;i<ops.length;i++){
-        var op=ops[i],ini=op.nome.split(" ").map(function(w){return w[0]}).slice(0,2).join(""),c=colors[i%colors.length];
+    for(var i=0;i<pageOps.length;i++){
+        var op=pageOps[i],ini=op.nome.split(" ").map(function(w){return w[0]}).slice(0,2).join(""),c=colors[(startIdx+i)%colors.length];
         var s=slots[op.nome]||{total:0,feito:0},sc,sl;
         if(s.feito===0){sc=s.total>0?"0/"+s.total:"0/0";sl="pendente-s"}
         else if(s.feito>=4){sc=s.feito+"/"+s.total;sl="completo"}
         else{sc=s.feito+"/"+s.total;sl="parcial"}
         html+='<div class="operador-card"><div class="operador-avatar" style="background:'+c+'20;color:'+c+'">'+ini+'</div>'+
             '<div class="operador-info"><div class="operador-name" title="'+op.nome+'">'+op.nome+'</div>'+
-            '<div class="operador-meta">'+op.turno+' · '+(op.carteira||"—")+'</div></div>'+
+            '<div class="operador-meta">'+(op.carteira||"—")+' · '+op.turno+'</div></div>'+
             '<span class="operador-status '+sl+'">'+sc+'</span></div>';
     }
-    ge("operadoresGrid").innerHTML=html||'<p style="color:var(--text-muted)">Nenhum operador.</p>';
+    ge("operadoresGrid").innerHTML=html||'<p style="color:var(--text-muted)">Nenhum operador encontrado.</p>';
+    /* Render paginação */
+    var pagHtml='<div class="ops-page-info">Mostrando '+(total>0?(startIdx+1):0)+' a '+endIdx+' de '+total+' operadores</div>';
+    if(totalPages>1){
+        pagHtml+='<div class="ops-page-btns">';
+        pagHtml+='<button onclick="opsGoPage(1)"'+((_opsPage===1)?' disabled':'')+'>«</button>';
+        pagHtml+='<button onclick="opsGoPage('+(_opsPage-1)+')"'+((_opsPage===1)?' disabled':'')+'>‹</button>';
+        var startP=Math.max(1,_opsPage-2);
+        var endP=Math.min(totalPages,_opsPage+2);
+        if(startP>1){pagHtml+='<button disabled>…</button>'}
+        for(var pg=startP;pg<=endP;pg++){
+            pagHtml+='<button onclick="opsGoPage('+pg+')"'+(pg===_opsPage?' class="active"':'')+'>'+pg+'</button>';
+        }
+        if(endP<totalPages){pagHtml+='<button disabled>…</button>'}
+        pagHtml+='<button onclick="opsGoPage('+(_opsPage+1)+')"'+((_opsPage===totalPages)?' disabled':'')+'>›</button>';
+        pagHtml+='<button onclick="opsGoPage('+totalPages+')"'+((_opsPage===totalPages)?' disabled':'')+'>»</button>';
+        pagHtml+='</div>';
+    }else{
+        pagHtml+='<div class="ops-page-btns"></div>';
+    }
+    ge("operadoresPagination").innerHTML=pagHtml;
 }
+function opsGoPage(p){_opsPage=p;renderOperadores()}
+function opsPerPageChange(v){_opsPerPage=parseInt(v);_opsPage=1;renderOperadores()}
+function opsSearchChange(v){_opsSearch=v;_opsPage=1;renderOperadores()}
 
-/* ======= RENDER: CALIBRAGEM ======= */
+/* ======= RENDER: CALIBRAGEM (DASHBOARD) ======= */
 function renderCalibragem(){
-    destroyChart("calibragem");
-    var md=getMonthData(),ops=loadOperadores(),opNotas={};
+    destroyChart("calibragem");destroyChart("calibComp");destroyChart("calibStatus");destroyChart("calibDivOp");
+    var md=getMonthData(),ops=loadOperadores();
     var validNames={};
     for(var i=0;i<ops.length;i++)validNames[ops[i].nome]=true;
+    /* Coletar dados: nota IA (nota salva) e nota humana (notaHumana, se existir) */
     var allK=Object.keys(md);
+    var calibRows=[];
+    var somaIA=0,somaHum=0,somaDiff=0,cntCalib=0,cntDivergente=0,cntAtencao=0,cntCalibrado=0;
     for(var i=0;i<allK.length;i++){
         var parts=allK[i].split("||");if(parts.length<2)continue;
-        var nome=parts[1];
-        /* Só contar operadores que ainda existem */
+        var nome=parts[1],data=parts[0];
         if(!validNames[nome])continue;
-        if(md[allK[i]].nota!==null&&md[allK[i]].nota!==undefined&&md[allK[i]].nota!==""){
-            if(!opNotas[nome])opNotas[nome]=[];opNotas[nome].push(parseFloat(md[allK[i]].nota));
-        }
+        var entry=md[allK[i]];
+        if(entry.nota===null||entry.nota===undefined||entry.nota==="")continue;
+        var notaIA=parseFloat(entry.nota);
+        var notaHum=(entry.notaHumana!==null&&entry.notaHumana!==undefined&&entry.notaHumana!=="")?parseFloat(entry.notaHumana):notaIA;
+        var diff=Math.abs(notaIA-notaHum);
+        var status,statusClass;
+        if(diff<=5){status="Calibrado";statusClass="calibrado";cntCalibrado++}
+        else if(diff<=10){status="Atenção";statusClass="atencao";cntAtencao++}
+        else{status="Divergente";statusClass="divergente";cntDivergente++}
+        /* Encontrar carteira e turno */
+        var turno="—",carteira="—";
+        for(var o=0;o<ops.length;o++){if(ops[o].nome===nome){turno=ops[o].turno;carteira=ops[o].carteira||"—";break}}
+        calibRows.push({nome:nome,carteira:carteira,turno:turno,data:data,notaIA:notaIA,notaHum:notaHum,diff:diff,status:status,statusClass:statusClass});
+        somaIA+=notaIA;somaHum+=notaHum;somaDiff+=diff;cntCalib++;
     }
-    var faixas={"0-20":0,"21-40":0,"41-60":0,"61-80":0,"81-100":0};
-    for(var n in opNotas){
-        var m=opNotas[n].reduce(function(a,b){return a+b},0)/opNotas[n].length;
-        if(m<=20)faixas["0-20"]++;else if(m<=40)faixas["21-40"]++;else if(m<=60)faixas["41-60"]++;else if(m<=80)faixas["61-80"]++;else faixas["81-100"]++;
+    var mediaIA=cntCalib>0?(somaIA/cntCalib).toFixed(1):"—";
+    var mediaHum=cntCalib>0?(somaHum/cntCalib).toFixed(1):"—";
+    var diffMedia=cntCalib>0?(somaDiff/cntCalib).toFixed(1):"—";
+    var pctAlinhamento=cntCalib>0?((cntCalibrado/cntCalib)*100).toFixed(1):"0";
+    /* KPIs */
+    var html='<div class="calib-kpi-grid">';
+    html+='<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">fact_check</span>Calibradas</div><div class="calib-kpi-value" style="color:var(--accent-light)">'+cntCalib+'</div></div>';
+    html+='<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">smart_toy</span>Média IA</div><div class="calib-kpi-value" style="color:var(--info)">'+mediaIA+'</div></div>';
+    html+='<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">person</span>Média Humana</div><div class="calib-kpi-value" style="color:var(--success)">'+mediaHum+'</div></div>';
+    html+='<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">swap_vert</span>Dif. Média</div><div class="calib-kpi-value" style="color:var(--warning)">'+diffMedia+'</div></div>';
+    html+='<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">warning</span>Divergentes</div><div class="calib-kpi-value" style="color:var(--danger)">'+cntDivergente+'</div></div>';
+    html+='<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">verified</span>Alinhamento</div><div class="calib-kpi-value" style="color:var(--success)">'+pctAlinhamento+'%</div></div>';
+    html+='</div>';
+    /* Gráficos */
+    html+='<div class="calib-charts-row">';
+    html+='<div class="calib-chart-card"><h3><span class="material-icons-round">bar_chart</span>Nota IA × Nota Humana</h3><canvas id="chartCalibComp"></canvas></div>';
+    html+='<div class="calib-chart-card"><h3><span class="material-icons-round">donut_large</span>Status de Calibração</h3><canvas id="chartCalibStatus"></canvas></div>';
+    html+='</div>';
+    html+='<div class="calib-charts-row">';
+    html+='<div class="calib-chart-card"><h3><span class="material-icons-round">leaderboard</span>Divergências por Operador</h3><canvas id="chartCalibDivOp"></canvas></div>';
+    /* Ranking */
+    html+='<div class="calib-ranking"><h3><span class="material-icons-round">emoji_events</span>Ranking — Maior Divergência</h3>';
+    /* Calcular divergência média por operador */
+    var opDivMap={};
+    for(var i=0;i<calibRows.length;i++){
+        var r=calibRows[i];
+        if(!opDivMap[r.nome])opDivMap[r.nome]={soma:0,cnt:0};
+        opDivMap[r.nome].soma+=r.diff;
+        opDivMap[r.nome].cnt++;
     }
-    var ctx=ge("chartCalibragem").getContext("2d");
-    chartInstances["calibragem"]=new Chart(ctx,{type:"bar",data:{labels:Object.keys(faixas),datasets:[{label:"Operadores",data:Object.values(faixas),backgroundColor:["#ff6b6b","#fdcb6e","#74b9ff","#a29bfe","#00cec9"],borderWidth:0}]},
-        options:{responsive:true,maintainAspectRatio:true,indexAxis:"y",plugins:{legend:{display:false}},
-            scales:{x:{beginAtZero:true,ticks:{color:"#5c6078",stepSize:1},grid:{color:"#2a2d3e"}},y:{ticks:{color:"#8b8fa7",font:{size:11}},grid:{display:false}}}}});
-    var rows=[];
-    for(var i=0;i<ops.length;i++){
-        var n=ops[i].nome,nt=opNotas[n]||[],med=nt.length>0?(nt.reduce(function(a,b){return a+b},0)/nt.length).toFixed(1):"—";
-        rows.push({nome:n,turno:ops[i].turno,carteira:ops[i].carteira||"—",avaliacoes:nt.length,media:med});
+    var opDivArr=[];
+    for(var n in opDivMap){opDivArr.push({nome:n,media:(opDivMap[n].soma/opDivMap[n].cnt).toFixed(1)})}
+    opDivArr.sort(function(a,b){return parseFloat(b.media)-parseFloat(a.media)});
+    var topN=Math.min(10,opDivArr.length);
+    if(topN===0){html+='<p style="color:var(--text-muted);font-size:12px">Sem dados de calibração.</p>'}
+    for(var i=0;i<topN;i++){
+        var d=opDivArr[i];
+        var dm=parseFloat(d.media);
+        var rc=dm>10?"var(--danger)":dm>5?"var(--warning)":"var(--success)";
+        var bgc=dm>10?"rgba(255,107,107,.15)":dm>5?"rgba(253,203,110,.15)":"rgba(0,206,201,.15)";
+        html+='<div class="calib-rank-item"><div class="calib-rank-pos" style="background:'+bgc+';color:'+rc+'">'+(i+1)+'</div>';
+        html+='<div class="calib-rank-name" title="'+d.nome+'">'+d.nome+'</div>';
+        html+='<div class="calib-rank-diff" style="color:'+rc+'">±'+d.media+'</div></div>';
     }
-    rows.sort(function(a,b){return(parseFloat(b.media)||0)-(parseFloat(a.media)||0)});
-    var t='<table><thead><tr><th>#</th><th>Operador</th><th>Turno</th><th>Carteira</th><th>Aval.</th><th>Média</th></tr></thead><tbody>';
+    html+='</div></div>';
+    /* Tabela detalhada */
+    html+='<div class="calib-table-wrapper"><table><thead><tr><th>Operador</th><th>Carteira</th><th>Turno</th><th>Data</th><th>Nota IA</th><th>Nota Humana</th><th>Diferença</th><th>Status</th></tr></thead><tbody>';
+    calibRows.sort(function(a,b){return b.diff-a.diff});
+    if(calibRows.length===0){
+        html+='<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">Nenhuma avaliação para calibrar.</td></tr>';
+    }
+    for(var i=0;i<calibRows.length;i++){
+        var r=calibRows[i];
+        html+='<tr><td style="font-weight:600;color:var(--text-primary)">'+r.nome+'</td><td>'+r.carteira+'</td><td>'+r.turno+'</td><td>'+r.data+'</td>';
+        html+='<td style="font-weight:700;color:var(--info)">'+r.notaIA.toFixed(1)+'</td>';
+        html+='<td style="font-weight:700;color:var(--success)">'+r.notaHum.toFixed(1)+'</td>';
+        html+='<td style="font-weight:700;color:'+(r.diff>10?'var(--danger)':r.diff>5?'var(--warning)':'var(--success)')+'">'+r.diff.toFixed(1)+'</td>';
+        html+='<td><span class="calib-status '+r.statusClass+'">'+r.status+'</span></td></tr>';
+    }
+    html+='</tbody></table></div>';
+    ge("calibragemContent").innerHTML=html;
+    /* Renderizar gráficos */
+    renderCalibCharts(calibRows,cntCalibrado,cntAtencao,cntDivergente,opDivArr);
+}
+function renderCalibCharts(rows,cntCalibrado,cntAtencao,cntDivergente,opDivArr){
+    /* Gráfico 1: Nota IA x Nota Humana — barras agrupadas por operador (top 15) */
+    var opAvg={};
     for(var i=0;i<rows.length;i++){
-        t+='<tr><td>'+(i+1)+'</td><td>'+rows[i].nome+'</td><td>'+rows[i].turno+'</td><td>'+rows[i].carteira+'</td><td>'+rows[i].avaliacoes+'</td><td style="font-weight:700;color:var(--accent-light)">'+rows[i].media+'</td></tr>';
+        var r=rows[i];
+        if(!opAvg[r.nome])opAvg[r.nome]={somaIA:0,somaH:0,cnt:0};
+        opAvg[r.nome].somaIA+=r.notaIA;opAvg[r.nome].somaH+=r.notaHum;opAvg[r.nome].cnt++;
     }
-    t+='</tbody></table>';
-    ge("calibragemTable").innerHTML=t;
+    var compLabels=[],compIA=[],compHum=[];
+    var opNames=Object.keys(opAvg);
+    opNames.sort(function(a,b){return(opAvg[b].somaIA/opAvg[b].cnt)-(opAvg[a].somaIA/opAvg[a].cnt)});
+    var showN=Math.min(15,opNames.length);
+    for(var i=0;i<showN;i++){
+        var n=opNames[i],avg=opAvg[n];
+        compLabels.push(n.split(" ").slice(0,2).join(" "));
+        compIA.push((avg.somaIA/avg.cnt).toFixed(1));
+        compHum.push((avg.somaH/avg.cnt).toFixed(1));
+    }
+    var ctx1=ge("chartCalibComp");
+    if(ctx1){
+        chartInstances["calibComp"]=new Chart(ctx1.getContext("2d"),{type:"bar",data:{labels:compLabels,datasets:[
+            {label:"Nota IA",data:compIA,backgroundColor:"rgba(116,185,255,.5)",borderColor:"#74b9ff",borderWidth:1},
+            {label:"Nota Humana",data:compHum,backgroundColor:"rgba(0,206,201,.5)",borderColor:"#00cec9",borderWidth:1}
+        ]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{labels:{color:"#8b8fa7",font:{family:"Plus Jakarta Sans",size:11}}}},
+            scales:{x:{ticks:{color:"#5c6078",font:{size:9},maxRotation:45},grid:{color:"#2a2d3e"}},y:{beginAtZero:true,max:100,ticks:{color:"#5c6078",font:{size:10}},grid:{color:"#2a2d3e"}}}}});
+    }
+    /* Gráfico 2: Status doughnut */
+    var ctx2=ge("chartCalibStatus");
+    if(ctx2){
+        chartInstances["calibStatus"]=new Chart(ctx2.getContext("2d"),{type:"doughnut",data:{labels:["Calibrado","Atenção","Divergente"],datasets:[{data:[cntCalibrado,cntAtencao,cntDivergente],backgroundColor:["#00cec9","#fdcb6e","#ff6b6b"],borderWidth:0}]},
+            options:{responsive:true,maintainAspectRatio:true,cutout:"65%",plugins:{legend:{labels:{color:"#8b8fa7",font:{family:"Plus Jakarta Sans",size:11}}}}}});
+    }
+    /* Gráfico 3: Divergências por operador — top 10 horizontal */
+    var divLabels=[],divData=[],divColors=[];
+    var topDiv=Math.min(10,opDivArr.length);
+    for(var i=0;i<topDiv;i++){
+        divLabels.push(opDivArr[i].nome.split(" ").slice(0,2).join(" "));
+        divData.push(parseFloat(opDivArr[i].media));
+        var dm=parseFloat(opDivArr[i].media);
+        divColors.push(dm>10?"#ff6b6b":dm>5?"#fdcb6e":"#00cec9");
+    }
+    var ctx3=ge("chartCalibDivOp");
+    if(ctx3){
+        chartInstances["calibDivOp"]=new Chart(ctx3.getContext("2d"),{type:"bar",data:{labels:divLabels,datasets:[{label:"Dif. Média",data:divData,backgroundColor:divColors,borderWidth:0}]},
+            options:{responsive:true,maintainAspectRatio:true,indexAxis:"y",plugins:{legend:{display:false}},
+                scales:{x:{beginAtZero:true,ticks:{color:"#5c6078",font:{size:10}},grid:{color:"#2a2d3e"}},y:{ticks:{color:"#8b8fa7",font:{size:10}},grid:{display:false}}}}});
+    }
 }
 
 /* ======= RENDER: RELATÓRIOS ======= */
@@ -872,7 +1032,7 @@ function renderRelatorios(){
         html+='<div class="custom-dropdown-item'+((_filtroOpValue===""?" selected":""))+'" data-value="" onclick="selecionarFiltroOp(this)">— Selecione um operador —</div>';
         for(var i=0;i<ops.length;i++){
             var esc=ops[i].nome.replace(/"/g,'&quot;');
-            var label=ops[i].nome+' ('+ops[i].turno+')';
+            var label=ops[i].nome+' ('+(ops[i].carteira||"—")+' · '+ops[i].turno+')';
             html+='<div class="custom-dropdown-item'+(_filtroOpValue===ops[i].nome?" selected":"")+'" data-value="'+esc+'" onclick="selecionarFiltroOp(this)">'+label+'</div>';
         }
         html+='</div></div></div>';
@@ -999,7 +1159,7 @@ function renderConfiguracoes(){
         html+='<div id="cfgOpsList">';
         for(var i=0;i<ops.length;i++){
             var sn=ops[i].nome.replace(/'/g,"\\'");
-            html+='<div class="cfg-row"><div class="cfg-row-info"><div class="cfg-row-name">'+ops[i].nome+'</div><div class="cfg-row-sub">'+ops[i].turno+' · '+(ops[i].carteira||"—")+'</div></div>';
+            html+='<div class="cfg-row"><div class="cfg-row-info"><div class="cfg-row-name">'+ops[i].nome+'</div><div class="cfg-row-sub">'+(ops[i].carteira||"—")+' · '+ops[i].turno+'</div></div>';
             html+='<div class="cfg-row-actions">';
             html+='<button class="btn-sm" onclick="modalEditarOperador('+i+')"><span class="material-icons-round">edit</span> Editar</button>';
             html+='<button class="btn-sm danger" onclick="confirmarRemoverOp(\''+sn+'\')"><span class="material-icons-round">delete</span> Remover</button>';
