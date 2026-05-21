@@ -130,7 +130,10 @@ function safeJSON(raw,fallback){try{return JSON.parse(raw)}catch(e){return fallb
 
 /* ======= USERS (multi-user system) ======= */
 var DEFAULT_USERS = [
-    {login:"admin",senha:"admin123",nome:"Administrador",cargo:"Administrador"}
+    {login:"admin",senha:"admin123",nome:"Administrador",cargo:"Administrador"},
+    {login:"supervisor",senha:"supervisor123",nome:"Supervisor",cargo:"Supervisor"},
+    {login:"coordenador",senha:"coordenador123",nome:"Coordenador",cargo:"Coordenador"},
+    {login:"monitor",senha:"monitor123",nome:"Monitor",cargo:"Monitor"}
 ];
 function loadUsers(){
     var raw=localStorage.getItem(SK_USERS);
