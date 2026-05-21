@@ -473,6 +473,7 @@ function switchTab(tab){
     else if(tab==="evolucao")renderEvolucao();
     else if(tab==="operadores")renderOperadores();
     else if(tab==="calibragem")renderCalibragem();
+    else if(tab==="relatorios")renderRelatorios();
     else if(tab==="configuracoes")renderConfiguracoes();
 }
 function toggleSidebar(){ge("sidebar").classList.toggle("open")}
@@ -838,6 +839,99 @@ function renderCalibragem(){
     ge("calibragemTable").innerHTML=t;
 }
 
+/* ======= RENDER: RELATÓRIOS ======= */
+var _filtroOpValue="";
+function renderRelatorios(){
+    var logged=getLoggedUser();
+    var cargo=logged?logged.cargo:"Monitor";
+    var ops=loadOperadores();
+    var html="";
+
+    /* FILTRO POR OPERADOR — Admin, Coordenador, Supervisor */
+    if(cargo==="Administrador"||cargo==="Coordenador"||cargo==="Supervisor"){
+        html+='<div class="filtro-section">';
+        html+='<h3><span class="material-icons-round">filter_alt</span> Relatório Individual por Operador</h3>';
+        html+='<p>Selecione um operador para gerar o relatório individual em PDF com todas as avaliações do mês.</p>';
+        html+='<div class="filtro-row">';
+        html+='<div class="filtro-field"><span class="filtro-label">Operador</span>';
+        html+='<div class="custom-dropdown" id="filtroDropdown">';
+        html+='<button type="button" class="custom-dropdown-trigger" id="filtroTrigger" onclick="toggleFiltroDropdown()">'+(_filtroOpValue||"— Selecione um operador —")+'</button>';
+        html+='<span class="material-icons-round custom-dropdown-arrow">expand_more</span>';
+        html+='<div class="custom-dropdown-list" id="filtroList">';
+        html+='<input type="text" class="custom-dropdown-search" id="filtroSearch" placeholder="Buscar operador..." oninput="filtrarDropdownOps()">';
+        html+='<div class="custom-dropdown-item'+((_filtroOpValue===""?" selected":""))+'" data-value="" onclick="selecionarFiltroOp(this)">— Selecione um operador —</div>';
+        for(var i=0;i<ops.length;i++){
+            var esc=ops[i].nome.replace(/"/g,'&quot;');
+            var label=ops[i].nome+' ('+ops[i].turno+')';
+            html+='<div class="custom-dropdown-item'+(_filtroOpValue===ops[i].nome?" selected":"")+'" data-value="'+esc+'" onclick="selecionarFiltroOp(this)">'+label+'</div>';
+        }
+        html+='</div></div></div>';
+        html+='<button class="btn-primary" onclick="gerarRelatorioFiltrado()" style="height:38px;white-space:nowrap"><span class="material-icons-round" style="font-size:16px;vertical-align:middle">picture_as_pdf</span> Gerar PDF</button>';
+        html+='</div></div>';
+    }
+
+    /* CARDS DE RELATÓRIOS */
+    html+='<div class="relatorios-grid">';
+    html+='<div class="relatorio-card" onclick="gerarRelatorioMensalGeral()"><span class="material-icons-round relatorio-icon">summarize</span><h3>Relatório Mensal Geral</h3><p>Visão consolidada de todas as avaliações do mês.</p><span class="btn-gerar">Gerar PDF</span></div>';
+    html+='<div class="relatorio-card" onclick="gerarRelatorioPendencias()"><span class="material-icons-round relatorio-icon">pending_actions</span><h3>Relatório de Pendências</h3><p>Lista de avaliações pendentes no mês.</p><span class="btn-gerar">Gerar PDF</span></div>';
+    html+='<div class="relatorio-card" onclick="gerarRelatorioPorOperador()"><span class="material-icons-round relatorio-icon">person_search</span><h3>Relatório por Operador</h3><p>Detalhamento individual de cada operador.</p><span class="btn-gerar">Gerar PDF</span></div>';
+    html+='<div class="relatorio-card" onclick="gerarRelatorioPorTurno()"><span class="material-icons-round relatorio-icon">schedule</span><h3>Relatório por Turno</h3><p>Avaliações agrupadas por turno.</p><span class="btn-gerar">Gerar PDF</span></div>';
+    html+='<div class="relatorio-card" onclick="gerarRelatorioFechamento()"><span class="material-icons-round relatorio-icon">lock_clock</span><h3>Fechamento do Mês</h3><p>Consolidação final do mês atual.</p><span class="btn-gerar">Gerar PDF</span></div>';
+    html+='<div class="relatorio-card" onclick="gerarRelatorioHistorico()"><span class="material-icons-round relatorio-icon">history</span><h3>Histórico de Meses</h3><p>Dados consolidados de meses anteriores.</p><span class="btn-gerar">Gerar PDF</span></div>';
+    html+='</div>';
+
+    ge("relatoriosContent").innerHTML=html;
+}
+
+/* DROPDOWN CUSTOMIZADO — funções */
+function toggleFiltroDropdown(){
+    var trigger=ge("filtroTrigger"),list=ge("filtroList");
+    var isOpen=list.classList.contains("show");
+    if(isOpen){
+        list.classList.remove("show");
+        trigger.classList.remove("open");
+    }else{
+        list.classList.add("show");
+        trigger.classList.add("open");
+        var search=ge("filtroSearch");
+        if(search){search.value="";search.focus()}
+        filtrarDropdownOps();
+    }
+}
+function filtrarDropdownOps(){
+    var search=ge("filtroSearch");
+    var term=search?search.value.toUpperCase():"";
+    var items=ge("filtroList").querySelectorAll(".custom-dropdown-item");
+    for(var i=0;i<items.length;i++){
+        var val=items[i].textContent.toUpperCase();
+        if(!term||val.indexOf(term)!==-1){items[i].classList.remove("hidden")}
+        else{items[i].classList.add("hidden")}
+    }
+}
+function selecionarFiltroOp(el){
+    var value=el.getAttribute("data-value");
+    _filtroOpValue=value;
+    var trigger=ge("filtroTrigger");
+    trigger.textContent=value?el.textContent:"— Selecione um operador —";
+    trigger.classList.remove("open");
+    ge("filtroList").classList.remove("show");
+    /* Atualizar selected */
+    var items=ge("filtroList").querySelectorAll(".custom-dropdown-item");
+    for(var i=0;i<items.length;i++){
+        if(items[i].getAttribute("data-value")===value)items[i].classList.add("selected");
+        else items[i].classList.remove("selected");
+    }
+}
+/* Fechar dropdown ao clicar fora */
+document.addEventListener("click",function(e){
+    var dd=ge("filtroDropdown");
+    if(dd&&!dd.contains(e.target)){
+        var list=ge("filtroList"),trigger=ge("filtroTrigger");
+        if(list)list.classList.remove("show");
+        if(trigger)trigger.classList.remove("open");
+    }
+});
+
 /* ======= RENDER: CONFIGURAÇÕES ======= */
 function renderConfiguracoes(){
     var cfg=loadConfig(),ops=loadOperadores(),users=loadUsers();
@@ -911,22 +1005,6 @@ function renderConfiguracoes(){
         }
         if(ops.length===0)html+='<p style="color:var(--text-muted);font-size:12px">Nenhum operador cadastrado.</p>';
         html+='</div>';
-    }
-
-    /* FILTRO POR OPERADOR — Admin, Coordenador, Supervisor */
-    if(cargoLogado==="Administrador"||cargoLogado==="Coordenador"||cargoLogado==="Supervisor"){
-        html+='<div class="config-section"><h3><span class="material-icons-round">filter_alt</span> Filtro por Operador</h3>';
-        html+='<p>Selecione um operador para gerar o relatório individual em PDF com todas as avaliações do mês.</p>';
-        html+='<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">';
-        html+='<div style="flex:1;min-width:200px"><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Operador</label>';
-        html+='<select id="filtroOpSelect" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-main);color:var(--text-main);font-size:13px">';
-        html+='<option value="">— Selecione —</option>';
-        for(var i=0;i<ops.length;i++){
-            html+='<option value="'+ops[i].nome.replace(/"/g,'&quot;')+'">'+ops[i].nome+' ('+ops[i].turno+')</option>';
-        }
-        html+='</select></div>';
-        html+='<button class="btn-primary" onclick="gerarRelatorioFiltrado()" style="height:38px;white-space:nowrap"><span class="material-icons-round" style="font-size:16px;vertical-align:middle">picture_as_pdf</span> Gerar PDF</button>';
-        html+='</div></div>';
     }
 
     /* HISTÓRICO */
@@ -1241,9 +1319,8 @@ function gerarRelatorioHistorico(){
 }
 
 function gerarRelatorioFiltrado(){
-    var sel=ge("filtroOpSelect");
-    if(!sel||!sel.value){alert("Selecione um operador antes de gerar o PDF.");return}
-    var nomeOp=sel.value;
+    if(!_filtroOpValue){alert("Selecione um operador antes de gerar o PDF.");return}
+    var nomeOp=_filtroOpValue;
     var ops=loadOperadores();
     var opObj=null;
     for(var i=0;i<ops.length;i++){if(ops[i].nome===nomeOp){opObj=ops[i];break}}

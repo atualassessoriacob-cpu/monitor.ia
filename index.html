@@ -135,14 +135,7 @@
         <!-- TAB: RELATÓRIOS -->
         <section id="tab-relatorios" class="tab-content">
             <div class="tab-header"><h2>Relatórios</h2><p class="tab-subtitle">Geração de relatórios em PDF</p></div>
-            <div class="relatorios-grid">
-                <div class="relatorio-card" onclick="gerarRelatorioMensalGeral()"><span class="material-icons-round relatorio-icon">summarize</span><h3>Relatório Mensal Geral</h3><p>Visão consolidada de todas as avaliações do mês.</p><span class="btn-gerar">Gerar PDF</span></div>
-                <div class="relatorio-card" onclick="gerarRelatorioPendencias()"><span class="material-icons-round relatorio-icon">pending_actions</span><h3>Relatório de Pendências</h3><p>Lista de avaliações pendentes no mês.</p><span class="btn-gerar">Gerar PDF</span></div>
-                <div class="relatorio-card" onclick="gerarRelatorioPorOperador()"><span class="material-icons-round relatorio-icon">person_search</span><h3>Relatório por Operador</h3><p>Detalhamento individual de cada operador.</p><span class="btn-gerar">Gerar PDF</span></div>
-                <div class="relatorio-card" onclick="gerarRelatorioPorTurno()"><span class="material-icons-round relatorio-icon">schedule</span><h3>Relatório por Turno</h3><p>Avaliações agrupadas por turno.</p><span class="btn-gerar">Gerar PDF</span></div>
-                <div class="relatorio-card" onclick="gerarRelatorioFechamento()"><span class="material-icons-round relatorio-icon">lock_clock</span><h3>Fechamento do Mês</h3><p>Consolidação final do mês atual.</p><span class="btn-gerar">Gerar PDF</span></div>
-                <div class="relatorio-card" onclick="gerarRelatorioHistorico()"><span class="material-icons-round relatorio-icon">history</span><h3>Histórico de Meses</h3><p>Dados consolidados de meses anteriores.</p><span class="btn-gerar">Gerar PDF</span></div>
-            </div>
+            <div id="relatoriosContent"></div>
         </section>
 
         <!-- TAB: CONFIGURAÇÕES -->
