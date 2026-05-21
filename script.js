@@ -1,7 +1,9 @@
 /* ============================================
-   Monitor.IA — Atual Assessoria — Script v4
+   Monitor.IA — Atual Assessoria — Script v5
    HTML/CSS/JS puro — localStorage only
    Cada navegador/dispositivo mantém dados próprios.
+   Avaliações separadas por mês (monitorIA_aval_YYYY_MM).
+   Permissões por cargo: Administrador, Coordenador, Supervisor, Monitor.
    ============================================ */
 
 /* ======= DEFAULT OPERADORES ======= */
@@ -180,6 +182,20 @@ function checkAdmin(msg){
     if(!isAdmin()){alert(msg||"Acesso restrito ao administrador.");return false}
     return true;
 }
+/* Verifica se o cargo do usuário logado permite uma ação */
+function cargoPermite(acao){
+    var u=getLoggedUser();
+    if(!u)return false;
+    var cargo=u.cargo||"Monitor";
+    var permissoes={
+        "Administrador":["addUser","editUser","removeUser","alterarSenha","alterarCargo","configuracoes","avaliacoes","lancarNota","relatorios","dashboards","operadores"],
+        "Coordenador":["visualizarUsers","relatorios","dashboards","avaliacoes","operadores"],
+        "Supervisor":["avaliacoes","lancarNota","relatorios","operadores"],
+        "Monitor":["avaliacoes","lancarNota"]
+    };
+    var p=permissoes[cargo]||[];
+    return p.indexOf(acao)!==-1;
+}
 
 /* ======= OPERADORES ======= */
 function loadOperadores(){
@@ -301,17 +317,19 @@ function getWeekNum(date){
     }
     return 4;
 }
-/* Retorna operadores do dia baseado no dia da semana:
-   Seg=slice(0,7), Ter=slice(7,14), Qua=slice(14,21), Qui=slice(21,28), Sex=slice(28)
-   Cada operador aparece 1x por semana. Na semana seguinte, repete a mesma distribuição. */
+/* Retorna operadores do dia baseado no dia da semana (seg=1 a sex=5).
+   Distribui proporcionalmente: cada dia recebe floor(N/5) operadores,
+   os primeiros (N%5) dias recebem +1. Escala de 1 a 200+ operadores.
+   Cada operador aparece 1x por semana. */
 function getOpsForDay(dayOfWeek,ops){
     if(dayOfWeek===0||dayOfWeek===6)return [];
-    if(dayOfWeek===1)return ops.slice(0,7);
-    if(dayOfWeek===2)return ops.slice(7,14);
-    if(dayOfWeek===3)return ops.slice(14,21);
-    if(dayOfWeek===4)return ops.slice(21,28);
-    if(dayOfWeek===5)return ops.slice(28);
-    return [];
+    var nDays=5,idx=dayOfWeek-1;
+    var perDay=Math.floor(ops.length/nDays);
+    var extra=ops.length%nDays;
+    var start=0;
+    for(var d=0;d<idx;d++) start+=perDay+(d<extra?1:0);
+    var count=perDay+(idx<extra?1:0);
+    return ops.slice(start,start+count);
 }
 function getScheduleForMonth(){
     var now=new Date(),year=now.getFullYear(),month=now.getMonth();
@@ -398,8 +416,38 @@ function showApp(){
     var fullDisplay="Olá, "+displayName+(displayCargo?" — "+displayCargo:"");
     ge("headerUserName").textContent=fullDisplay;
     ge("sidebarUser").textContent=fullDisplay;
+    /* Ajustar visibilidade de abas no sidebar conforme cargo */
+    ajustarNavPorCargo();
     startClock();
     switchTab("visaoGeral");
+}
+/* Esconde/mostra botões da sidebar conforme permissão do cargo */
+function ajustarNavPorCargo(){
+    var user=getLoggedUser();
+    var cargo=user?user.cargo:"Monitor";
+    /* Todos veem: visaoGeral, avaliacoes */
+    /* Coordenador+: evolucao, operadores, calibragem, relatorios */
+    /* Supervisor: evolucao, operadores, calibragem, relatorios */
+    /* Monitor: apenas visaoGeral e avaliacoes */
+    var tabPermissoes={
+        "visaoGeral":["Administrador","Coordenador","Supervisor","Monitor"],
+        "avaliacoes":["Administrador","Coordenador","Supervisor","Monitor"],
+        "evolucao":["Administrador","Coordenador","Supervisor"],
+        "operadores":["Administrador","Coordenador","Supervisor"],
+        "calibragem":["Administrador","Coordenador","Supervisor"],
+        "relatorios":["Administrador","Coordenador","Supervisor"],
+        "configuracoes":["Administrador","Coordenador"]
+    };
+    var navBtns=qsa(".nav-btn");
+    for(var i=0;i<navBtns.length;i++){
+        var tab=navBtns[i].getAttribute("data-tab");
+        var permitidos=tabPermissoes[tab]||["Administrador"];
+        if(permitidos.indexOf(cargo)===-1){
+            navBtns[i].style.display="none";
+        }else{
+            navBtns[i].style.display="";
+        }
+    }
 }
 function startClock(){
     if(clockInterval)clearInterval(clockInterval);
@@ -436,6 +484,8 @@ function abrirModal(title,bodyHTML){
 function fecharModal(){ge("modalOverlay").style.display="none"}
 
 /* ======= UTIL: count evals ======= */
+/* IMPORTANTE: totalSlots e contagens SEMPRE usam operadores.length atual,
+   nunca dados residuais do localStorage */
 function countSlotsByOp(){
     var sched=getScheduleForMonth(),md=getMonthData(),result={};
     var dates=Object.keys(sched);
@@ -459,13 +509,13 @@ function countSlotsByOp(){
             if(getWeekNum(new Date(dates[d]+"T12:00:00"))!==wkNum)continue;
             var names=sched[dates[d]];
             for(var n=0;n<names.length;n++){
+                /* Só contar se o operador ainda existe */
+                if(!result[names[n]])continue;
                 var key=dates[d]+"||"+names[n];
                 if(!opsDone[names[n]]&&md[key]&&md[key].nota!==null&&md[key].nota!==undefined&&md[key].nota!==""){
                     opsDone[names[n]]=true;
-                    if(result[names[n]]){
-                        result[names[n]].feito++;
-                        result[names[n]].soma+=parseFloat(md[key].nota);
-                    }
+                    result[names[n]].feito++;
+                    result[names[n]].soma+=parseFloat(md[key].nota);
                 }
             }
         }
@@ -483,9 +533,13 @@ function totalStats(){
         weekSet[getWeekNum(new Date(dates[d]+"T12:00:00"))]=true;
     }
     var numWeeks=Object.keys(weekSet).length;
+    /* SEMPRE usar operadores.length atual * numWeeks */
     var totalSlots=nOps*numWeeks;
     /* Contar avaliados: cada operador conta 1x por semana */
     var totalDone=0,soma=0;
+    /* Montar set de nomes válidos */
+    var validNames={};
+    for(var i=0;i<ops.length;i++)validNames[ops[i].nome]=true;
     var wkNums=Object.keys(weekSet);
     for(var w=0;w<wkNums.length;w++){
         var wkNum=parseInt(wkNums[w]);
@@ -494,6 +548,8 @@ function totalStats(){
             if(getWeekNum(new Date(dates[d]+"T12:00:00"))!==wkNum)continue;
             var names=sched[dates[d]];
             for(var n=0;n<names.length;n++){
+                /* Só contar operadores que ainda existem */
+                if(!validNames[names[n]])continue;
                 var key=dates[d]+"||"+names[n];
                 if(!opsDone[names[n]]&&md[key]&&md[key].nota!==null&&md[key].nota!==undefined&&md[key].nota!==""){
                     opsDone[names[n]]=true;
@@ -533,6 +589,8 @@ function renderChartSemanal(){
     destroyChart("semanal");
     var ops=loadOperadores();
     var nOps=ops.length;
+    var validNames={};
+    for(var i=0;i<ops.length;i++)validNames[ops[i].nome]=true;
     var sched=getScheduleForMonth(),md=getMonthData(),weeks={};
     var dates=Object.keys(sched).sort();
     /* Descobrir semanas */
@@ -549,6 +607,7 @@ function renderChartSemanal(){
             if(getWeekNum(new Date(dates[i]+"T12:00:00"))!==wkNum)continue;
             var names=sched[dates[i]];
             for(var j=0;j<names.length;j++){
+                if(!validNames[names[j]])continue;
                 var key=dates[i]+"||"+names[j];
                 if(!opsDone[names[j]]&&md[key]&&md[key].nota!==null&&md[key].nota!==undefined&&md[key].nota!==""){
                     opsDone[names[j]]=true;
@@ -557,6 +616,7 @@ function renderChartSemanal(){
             }
         }
     }
+    /* SEMPRE usar nOps atual como programado */
     var labels=wkKeys,d1=labels.map(function(){return nOps}),d2=labels.map(function(l){return weeks[l].feito});
     var ctx=ge("chartSemanal").getContext("2d");
     chartInstances["semanal"]=new Chart(ctx,{type:"bar",data:{labels:labels,datasets:[
@@ -673,9 +733,13 @@ function resetAval(nome,idx){
 }
 
 /* ======= RENDER: EVOLUÇÃO ======= */
+/* CORRIGIDO: SEMPRE usa operadores.length atual como planejado de cada semana.
+   Não usa dados residuais do localStorage. */
 function renderEvolucao(){
     var ops=loadOperadores();
     var nOps=ops.length;
+    var validNames={};
+    for(var i=0;i<ops.length;i++)validNames[ops[i].nome]=true;
     var sched=getScheduleForMonth(),md=getMonthData(),weeks={};
     var dates=Object.keys(sched).sort();
     /* Primeiro: descobrir quais semanas existem */
@@ -692,6 +756,8 @@ function renderEvolucao(){
             if(getWeekNum(new Date(dates[i]+"T12:00:00"))!==wkNum)continue;
             var names=sched[dates[i]];
             for(var j=0;j<names.length;j++){
+                /* Só contar operadores que AINDA existem */
+                if(!validNames[names[j]])continue;
                 var key=dates[i]+"||"+names[j];
                 if(!opsDone[names[j]]&&md[key]&&md[key].nota!==null&&md[key].nota!==undefined&&md[key].nota!==""){
                     opsDone[names[j]]=true;
@@ -703,6 +769,7 @@ function renderEvolucao(){
     }
     var html="";
     for(var i=0;i<wkKeys.length;i++){
+        /* SEMPRE usa nOps (operadores.length atual) como planejado */
         var w=weeks[wkKeys[i]],pct=nOps>0?((w.feito/nOps)*100).toFixed(0):0,med=w.feito>0?(w.soma/w.feito).toFixed(1):"—";
         html+='<div class="evolucao-week"><h3><span class="material-icons-round" style="color:var(--accent);font-size:18px">date_range</span>'+wkKeys[i]+'</h3>'+
             '<div class="evolucao-bar"><div class="evolucao-bar-fill" style="width:'+pct+'%"></div></div>'+
@@ -736,10 +803,14 @@ function renderOperadores(){
 function renderCalibragem(){
     destroyChart("calibragem");
     var md=getMonthData(),ops=loadOperadores(),opNotas={};
+    var validNames={};
+    for(var i=0;i<ops.length;i++)validNames[ops[i].nome]=true;
     var allK=Object.keys(md);
     for(var i=0;i<allK.length;i++){
         var parts=allK[i].split("||");if(parts.length<2)continue;
         var nome=parts[1];
+        /* Só contar operadores que ainda existem */
+        if(!validNames[nome])continue;
         if(md[allK[i]].nota!==null&&md[allK[i]].nota!==undefined&&md[allK[i]].nota!==""){
             if(!opNotas[nome])opNotas[nome]=[];opNotas[nome].push(parseFloat(md[allK[i]].nota));
         }
@@ -814,22 +885,49 @@ function renderConfiguracoes(){
         }
         html+='</div>';
     }
+    /* Supervisor e Monitor: NÃO veem seção de usuários */
 
-    /* OPERADORES */
-    html+='<div class="config-section"><h3><span class="material-icons-round">people</span> Operadores</h3>';
-    html+='<p>Adicione, edite ou remova operadores. Alterações refletem em todo o sistema.</p>';
-    html+='<div class="config-toolbar"><button class="btn-primary" onclick="modalAddOperador()"><span class="material-icons-round" style="font-size:18px">person_add</span> Adicionar Operador</button></div>';
-    html+='<div id="cfgOpsList">';
-    for(var i=0;i<ops.length;i++){
-        var sn=ops[i].nome.replace(/'/g,"\\'");
-        html+='<div class="cfg-row"><div class="cfg-row-info"><div class="cfg-row-name">'+ops[i].nome+'</div><div class="cfg-row-sub">'+ops[i].turno+' · '+(ops[i].carteira||"—")+'</div></div>';
-        html+='<div class="cfg-row-actions">';
-        html+='<button class="btn-sm" onclick="modalEditarOperador('+i+')"><span class="material-icons-round">edit</span> Editar</button>';
-        html+='<button class="btn-sm danger" onclick="confirmarRemoverOp(\''+sn+'\')"><span class="material-icons-round">delete</span> Remover</button>';
+    /* OPERADORES — Admin e Coordenador podem ver, Admin pode editar */
+    if(ehAdmin){
+        html+='<div class="config-section"><h3><span class="material-icons-round">people</span> Operadores</h3>';
+        html+='<p>Adicione, edite ou remova operadores. Alterações refletem em todo o sistema.</p>';
+        html+='<div class="config-toolbar"><button class="btn-primary" onclick="modalAddOperador()"><span class="material-icons-round" style="font-size:18px">person_add</span> Adicionar Operador</button></div>';
+        html+='<div id="cfgOpsList">';
+        for(var i=0;i<ops.length;i++){
+            var sn=ops[i].nome.replace(/'/g,"\\'");
+            html+='<div class="cfg-row"><div class="cfg-row-info"><div class="cfg-row-name">'+ops[i].nome+'</div><div class="cfg-row-sub">'+ops[i].turno+' · '+(ops[i].carteira||"—")+'</div></div>';
+            html+='<div class="cfg-row-actions">';
+            html+='<button class="btn-sm" onclick="modalEditarOperador('+i+')"><span class="material-icons-round">edit</span> Editar</button>';
+            html+='<button class="btn-sm danger" onclick="confirmarRemoverOp(\''+sn+'\')"><span class="material-icons-round">delete</span> Remover</button>';
+            html+='</div></div>';
+        }
+        if(ops.length===0)html+='<p style="color:var(--text-muted);font-size:12px">Nenhum operador cadastrado.</p>';
+        html+='</div></div>';
+    }else if(cargoLogado==="Coordenador"){
+        html+='<div class="config-section"><h3><span class="material-icons-round">people</span> Operadores</h3>';
+        html+='<p>Lista de operadores cadastrados (somente leitura).</p>';
+        for(var i=0;i<ops.length;i++){
+            html+='<div class="cfg-row"><div class="cfg-row-info"><div class="cfg-row-name">'+ops[i].nome+'</div><div class="cfg-row-sub">'+ops[i].turno+' · '+(ops[i].carteira||"—")+'</div></div></div>';
+        }
+        if(ops.length===0)html+='<p style="color:var(--text-muted);font-size:12px">Nenhum operador cadastrado.</p>';
+        html+='</div>';
+    }
+
+    /* FILTRO POR OPERADOR — Admin, Coordenador, Supervisor */
+    if(cargoLogado==="Administrador"||cargoLogado==="Coordenador"||cargoLogado==="Supervisor"){
+        html+='<div class="config-section"><h3><span class="material-icons-round">filter_alt</span> Filtro por Operador</h3>';
+        html+='<p>Selecione um operador para gerar o relatório individual em PDF com todas as avaliações do mês.</p>';
+        html+='<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">';
+        html+='<div style="flex:1;min-width:200px"><label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">Operador</label>';
+        html+='<select id="filtroOpSelect" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg-main);color:var(--text-main);font-size:13px">';
+        html+='<option value="">— Selecione —</option>';
+        for(var i=0;i<ops.length;i++){
+            html+='<option value="'+ops[i].nome.replace(/"/g,'&quot;')+'">'+ops[i].nome+' ('+ops[i].turno+')</option>';
+        }
+        html+='</select></div>';
+        html+='<button class="btn-primary" onclick="gerarRelatorioFiltrado()" style="height:38px;white-space:nowrap"><span class="material-icons-round" style="font-size:16px;vertical-align:middle">picture_as_pdf</span> Gerar PDF</button>';
         html+='</div></div>';
     }
-    if(ops.length===0)html+='<p style="color:var(--text-muted);font-size:12px">Nenhum operador cadastrado.</p>';
-    html+='</div></div>';
 
     /* HISTÓRICO */
     html+='<div class="config-section"><h3><span class="material-icons-round">history</span> Histórico de Meses Anteriores</h3>';
@@ -967,6 +1065,7 @@ function removerUsuario(idx){
 
 /* CONFIG: OPERADORES */
 function modalAddOperador(){
+    if(!checkAdmin())return;
     abrirModal("Adicionar Operador",
         '<div class="field-group"><label>Nome do Operador</label><input type="text" id="mOpNome" placeholder="Nome completo"></div>'+
         '<div class="field-group"><label>Turno</label><select id="mOpTurno"><option value="Manhã">Manhã</option><option value="Tarde">Tarde</option></select></div>'+
@@ -974,6 +1073,7 @@ function modalAddOperador(){
         '<button class="btn-primary" onclick="salvarNovoOp()">Adicionar</button>');
 }
 function salvarNovoOp(){
+    if(!checkAdmin())return;
     var nome=ge("mOpNome").value.trim().toUpperCase(),turno=ge("mOpTurno").value,carteira=ge("mOpCarteira").value.trim()||"AEGEA";
     if(!nome)return;
     var ops=loadOperadores();
@@ -981,6 +1081,7 @@ function salvarNovoOp(){
     ops.push({nome:nome,turno:turno,carteira:carteira});saveOperadores(ops);fecharModal();syncAfterOpChange();
 }
 function modalEditarOperador(idx){
+    if(!checkAdmin())return;
     var ops=loadOperadores(),op=ops[idx];if(!op)return;
     abrirModal("Editar Operador",
         '<div class="field-group"><label>Nome</label><input type="text" id="mEdNome" value="'+op.nome+'" readonly style="opacity:.6"></div>'+
@@ -989,18 +1090,21 @@ function modalEditarOperador(idx){
         '<button class="btn-primary" onclick="salvarEditOp('+idx+')">Salvar</button>');
 }
 function salvarEditOp(idx){
+    if(!checkAdmin())return;
     var ops=loadOperadores();
     ops[idx].turno=ge("mEdTurno").value;
     ops[idx].carteira=ge("mEdCarteira").value.trim()||"AEGEA";
     saveOperadores(ops);fecharModal();syncAfterOpChange();
 }
 function confirmarRemoverOp(nome){
+    if(!checkAdmin())return;
     abrirModal("Remover Operador",
         '<p style="margin-bottom:16px;color:var(--text-secondary)">Remover <strong style="color:var(--text-primary)">'+nome+'</strong>?</p>'+
         '<p style="margin-bottom:16px;color:var(--text-muted);font-size:12px">As avaliações vinculadas a este operador também serão removidas.</p>'+
         '<button class="btn-primary" style="background:var(--danger)" onclick="removerOp(\''+nome.replace(/'/g,"\\'")+'\')">Confirmar Remoção</button>');
 }
 function removerOp(nome){
+    if(!checkAdmin()){fecharModal();return}
     var ops=loadOperadores();ops=ops.filter(function(o){return o.nome!==nome});saveOperadores(ops);
     /* Remove avaliações vinculadas ao operador SOMENTE no mês atual */
     var md=getMonthData();
@@ -1136,6 +1240,59 @@ function gerarRelatorioHistorico(){
     doc.save("historico_meses.pdf");
 }
 
+function gerarRelatorioFiltrado(){
+    var sel=ge("filtroOpSelect");
+    if(!sel||!sel.value){alert("Selecione um operador antes de gerar o PDF.");return}
+    var nomeOp=sel.value;
+    var ops=loadOperadores();
+    var opObj=null;
+    for(var i=0;i<ops.length;i++){if(ops[i].nome===nomeOp){opObj=ops[i];break}}
+    if(!opObj){alert("Operador não encontrado.");return}
+
+    var jsPDF=window.jspdf.jsPDF,doc=new jsPDF(),y=pdfHeader(doc,"Relatório Individual — "+monthKey());
+    var md=getMonthData();
+
+    /* Cabeçalho do operador */
+    doc.setFontSize(12);doc.setFont("helvetica","bold");doc.setTextColor(108,92,231);
+    doc.text(opObj.nome,14,y);y+=6;
+    doc.setFontSize(9);doc.setFont("helvetica","normal");doc.setTextColor(100,100,100);
+    doc.text("Turno: "+opObj.turno+"   |   Carteira: "+(opObj.carteira||"—"),14,y);y+=8;
+    doc.setTextColor(0,0,0);
+
+    /* Coletar avaliações deste operador */
+    var details=[],notas=[];
+    var allK=Object.keys(md).sort();
+    for(var j=0;j<allK.length;j++){
+        if(allK[j].indexOf("||"+nomeOp)===-1)continue;
+        var entry=md[allK[j]];
+        var data=allK[j].split("||")[0];
+        var nota=(entry.nota!==null&&entry.nota!==undefined&&entry.nota!=="")?entry.nota.toString():"—";
+        var obs=entry.obs||"";
+        details.push([data,nota,obs]);
+        if(nota!=="—")notas.push(parseFloat(entry.nota));
+    }
+
+    /* Resumo */
+    var media=notas.length>0?(notas.reduce(function(a,b){return a+b},0)/notas.length).toFixed(1):"—";
+    var menor=notas.length>0?Math.min.apply(null,notas).toFixed(1):"—";
+    var maior=notas.length>0?Math.max.apply(null,notas).toFixed(1):"—";
+    doc.setFontSize(10);doc.setFont("helvetica","normal");
+    doc.text("Avaliações realizadas: "+notas.length+"   |   Média: "+media+"   |   Menor nota: "+menor+"   |   Maior nota: "+maior,14,y);y+=8;
+
+    /* Tabela de avaliações */
+    doc.autoTable({
+        startY:y,
+        head:[["Data","Nota","Observação"]],
+        body:details.length>0?details:[["—","—","Sem avaliações no mês"]],
+        styles:{fontSize:8,font:"helvetica",cellWidth:'wrap'},
+        headStyles:{fillColor:[108,92,231]},
+        columnStyles:{0:{cellWidth:28},1:{cellWidth:16,halign:'center'},2:{cellWidth:'auto'}},
+        margin:{left:14,right:14}
+    });
+
+    doc.save("operador_"+nomeOp.replace(/\s+/g,"_")+"_"+monthKey()+".pdf");
+}
+
 /* ======= KEYPRESS ======= */
 document.addEventListener("keydown",function(e){if(e.key==="Enter"&&ge("loginScreen").style.display!=="none")doLogin()});
 
@@ -1144,6 +1301,8 @@ document.addEventListener("keydown",function(e){if(e.key==="Enter"&&ge("loginScr
     migrateAvalIfNeeded();
     checkMonthReset();
     loadUsers(); /* Garante que users existem */
+    /* Limpar avaliações órfãs ao iniciar */
+    cleanOrphanedAvals();
     var cfg=loadConfig();
     if(!cfg.senhaAtiva){
         var users=loadUsers();
