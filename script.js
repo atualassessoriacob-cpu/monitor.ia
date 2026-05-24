@@ -186,8 +186,8 @@ function checkAdmin(msg){
 function podeGerenciarOperadores(){
     var u=getLoggedUser();
     if(!u)return false;
-    /* Apenas Admin e Coordenador podem adicionar/editar/remover operadores */
-    return u.cargo==="Administrador"||u.cargo==="Coordenador";
+    /* Todos os cargos podem adicionar/editar/remover operadores */
+    return CARGOS_VALIDOS.indexOf(u.cargo)!==-1;
 }
 function podeVisualizarOperadores(){
     var u=getLoggedUser();
@@ -206,8 +206,8 @@ function cargoPermite(acao){
     var permissoes={
         "Administrador":["addUser","editUser","removeUser","alterarSenha","alterarCargo","configuracoes","avaliacoes","lancarNota","relatorios","dashboards","operadores","addOperador","editOperador","removeOperador","calibragem"],
         "Coordenador":["visualizarUsers","relatorios","dashboards","avaliacoes","operadores","addOperador","editOperador","removeOperador","calibragem"],
-        "Supervisor":["avaliacoes","lancarNota","relatorios","dashboards","operadores","calibragem"],
-        "Monitor":["avaliacoes","lancarNota","relatorios","dashboards","operadores","calibragem"]
+        "Supervisor":["avaliacoes","lancarNota","relatorios","dashboards","operadores","addOperador","editOperador","removeOperador","calibragem"],
+        "Monitor":["avaliacoes","lancarNota","relatorios","dashboards","operadores","addOperador","editOperador","removeOperador","calibragem"]
     };
     var p=permissoes[cargo]||[];
     return p.indexOf(acao)!==-1;
@@ -1227,7 +1227,7 @@ function renderConfiguracoes(){
     }
     /* Supervisor e Monitor: NÃO veem seção de usuários */
 
-    /* OPERADORES — Admin e Coordenador gerenciam; Supervisor e Monitor visualizam */
+    /* OPERADORES — Todos os cargos podem gerenciar operadores */
     if(podeGerenciarOperadores()){
         html+='<div class="config-section"><h3><span class="material-icons-round">people</span> Operadores</h3>';
         html+='<p>Adicione, edite ou remova operadores. Alterações refletem em todo o sistema.</p>';
@@ -1240,15 +1240,6 @@ function renderConfiguracoes(){
             html+='<button class="btn-sm" onclick="modalEditarOperador('+i+')"><span class="material-icons-round">edit</span> Editar</button>';
             html+='<button class="btn-sm danger" onclick="confirmarRemoverOp(\''+sn+'\')"><span class="material-icons-round">delete</span> Remover</button>';
             html+='</div></div>';
-        }
-        if(ops.length===0)html+='<p style="color:var(--text-muted);font-size:12px">Nenhum operador cadastrado.</p>';
-        html+='</div></div>';
-    }else if(podeVisualizarOperadores()){
-        html+='<div class="config-section"><h3><span class="material-icons-round">people</span> Operadores</h3>';
-        html+='<p>Lista de operadores cadastrados (somente visualização).</p>';
-        html+='<div id="cfgOpsList">';
-        for(var i=0;i<ops.length;i++){
-            html+='<div class="cfg-row"><div class="cfg-row-info"><div class="cfg-row-name">'+ops[i].nome+'</div><div class="cfg-row-sub">'+(ops[i].carteira||"—")+' · '+ops[i].turno+'</div></div></div>';
         }
         if(ops.length===0)html+='<p style="color:var(--text-muted);font-size:12px">Nenhum operador cadastrado.</p>';
         html+='</div></div>';
@@ -1270,13 +1261,13 @@ function renderConfiguracoes(){
     }
     html+='</div>';
 
-    /* RESET — só Admin */
-    if(ehAdmin){
+    /* RESET — todos os cargos */
     html+='<div class="config-section"><h3><span class="material-icons-round">restart_alt</span> Reset do Mês Atual</h3>';
     html+='<p>Salva os dados atuais no histórico e limpa as avaliações do mês.</p>';
     html+='<button class="btn-warn" onclick="resetMesAtual()">Resetar Mês</button></div>';
 
     /* LIMPAR TUDO — só Admin */
+    if(ehAdmin){
     html+='<div class="config-section"><h3><span class="material-icons-round">delete_forever</span> Limpar Todos os Dados</h3>';
     html+='<p>Remove avaliações, histórico e operadores do localStorage.</p>';
     html+='<button class="btn-danger" onclick="limparTudo()">Limpar Tudo</button></div>';
@@ -1443,7 +1434,7 @@ function removerOp(nome){
 
 /* CONFIG: RESET */
 function resetMesAtual(){
-    if(!checkAdmin())return;
+    if(!getLoggedUser())return;
     if(!confirm("Salvar dados do mês no histórico e resetar?"))return;
     var st=totalStats();
     var h=loadHist(),mk=monthKey();
