@@ -186,6 +186,12 @@ function checkAdmin(msg){
 function podeGerenciarOperadores(){
     var u=getLoggedUser();
     if(!u)return false;
+    /* Apenas Admin e Coordenador podem adicionar/editar/remover operadores */
+    return u.cargo==="Administrador"||u.cargo==="Coordenador";
+}
+function podeVisualizarOperadores(){
+    var u=getLoggedUser();
+    if(!u)return false;
     return CARGOS_VALIDOS.indexOf(u.cargo)!==-1;
 }
 function checkOperadorPermission(msg){
@@ -198,10 +204,10 @@ function cargoPermite(acao){
     if(!u)return false;
     var cargo=u.cargo||"Monitor";
     var permissoes={
-        "Administrador":["addUser","editUser","removeUser","alterarSenha","alterarCargo","configuracoes","avaliacoes","lancarNota","relatorios","dashboards","operadores","addOperador","editOperador","removeOperador"],
-        "Coordenador":["visualizarUsers","relatorios","dashboards","avaliacoes","operadores","addOperador","editOperador","removeOperador"],
-        "Supervisor":["avaliacoes","lancarNota","relatorios","operadores","addOperador","editOperador","removeOperador"],
-        "Monitor":["avaliacoes","lancarNota","operadores","addOperador","editOperador","removeOperador"]
+        "Administrador":["addUser","editUser","removeUser","alterarSenha","alterarCargo","configuracoes","avaliacoes","lancarNota","relatorios","dashboards","operadores","addOperador","editOperador","removeOperador","calibragem"],
+        "Coordenador":["visualizarUsers","relatorios","dashboards","avaliacoes","operadores","addOperador","editOperador","removeOperador","calibragem"],
+        "Supervisor":["avaliacoes","lancarNota","relatorios","dashboards","operadores","calibragem"],
+        "Monitor":["avaliacoes","lancarNota","relatorios","dashboards","operadores","calibragem"]
     };
     var p=permissoes[cargo]||[];
     return p.indexOf(acao)!==-1;
@@ -442,10 +448,10 @@ function ajustarNavPorCargo(){
     var tabPermissoes={
         "visaoGeral":["Administrador","Coordenador","Supervisor","Monitor"],
         "avaliacoes":["Administrador","Coordenador","Supervisor","Monitor"],
-        "evolucao":["Administrador","Coordenador","Supervisor"],
+        "evolucao":["Administrador","Coordenador","Supervisor","Monitor"],
         "operadores":["Administrador","Coordenador","Supervisor","Monitor"],
-        "calibragem":["Administrador","Coordenador","Supervisor"],
-        "relatorios":["Administrador","Coordenador","Supervisor"],
+        "calibragem":["Administrador","Coordenador","Supervisor","Monitor"],
+        "relatorios":["Administrador","Coordenador","Supervisor","Monitor"],
         "configuracoes":["Administrador","Coordenador","Supervisor","Monitor"]
     };
     var navBtns=qsa(".nav-btn");
@@ -1087,8 +1093,8 @@ function renderRelatorios(){
     var ops=loadOperadores();
     var html="";
 
-    /* FILTRO POR OPERADOR — Admin, Coordenador, Supervisor */
-    if(cargo==="Administrador"||cargo==="Coordenador"||cargo==="Supervisor"){
+    /* FILTRO POR OPERADOR — Todos os cargos */
+    if(cargo==="Administrador"||cargo==="Coordenador"||cargo==="Supervisor"||cargo==="Monitor"){
         html+='<div class="filtro-section">';
         html+='<h3><span class="material-icons-round">filter_alt</span> Relatório Individual por Operador</h3>';
         html+='<p>Selecione um operador para gerar o relatório individual em PDF com todas as avaliações do mês.</p>';
@@ -1221,19 +1227,28 @@ function renderConfiguracoes(){
     }
     /* Supervisor e Monitor: NÃO veem seção de usuários */
 
-    /* OPERADORES — Todos os cargos podem gerenciar operadores */
+    /* OPERADORES — Admin e Coordenador gerenciam; Supervisor e Monitor visualizam */
     if(podeGerenciarOperadores()){
         html+='<div class="config-section"><h3><span class="material-icons-round">people</span> Operadores</h3>';
         html+='<p>Adicione, edite ou remova operadores. Alterações refletem em todo o sistema.</p>';
         html+='<div class="config-toolbar"><button class="btn-primary" onclick="modalAddOperador()"><span class="material-icons-round" style="font-size:18px">person_add</span> Adicionar Operador</button></div>';
         html+='<div id="cfgOpsList">';
         for(var i=0;i<ops.length;i++){
-            var sn=ops[i].nome.replace(/'/g,"\\'");
+            var sn=ops[i].nome.replace(/'/g,"\'");
             html+='<div class="cfg-row"><div class="cfg-row-info"><div class="cfg-row-name">'+ops[i].nome+'</div><div class="cfg-row-sub">'+(ops[i].carteira||"—")+' · '+ops[i].turno+'</div></div>';
             html+='<div class="cfg-row-actions">';
             html+='<button class="btn-sm" onclick="modalEditarOperador('+i+')"><span class="material-icons-round">edit</span> Editar</button>';
             html+='<button class="btn-sm danger" onclick="confirmarRemoverOp(\''+sn+'\')"><span class="material-icons-round">delete</span> Remover</button>';
             html+='</div></div>';
+        }
+        if(ops.length===0)html+='<p style="color:var(--text-muted);font-size:12px">Nenhum operador cadastrado.</p>';
+        html+='</div></div>';
+    }else if(podeVisualizarOperadores()){
+        html+='<div class="config-section"><h3><span class="material-icons-round">people</span> Operadores</h3>';
+        html+='<p>Lista de operadores cadastrados (somente visualização).</p>';
+        html+='<div id="cfgOpsList">';
+        for(var i=0;i<ops.length;i++){
+            html+='<div class="cfg-row"><div class="cfg-row-info"><div class="cfg-row-name">'+ops[i].nome+'</div><div class="cfg-row-sub">'+(ops[i].carteira||"—")+' · '+ops[i].turno+'</div></div></div>';
         }
         if(ops.length===0)html+='<p style="color:var(--text-muted);font-size:12px">Nenhum operador cadastrado.</p>';
         html+='</div></div>';
