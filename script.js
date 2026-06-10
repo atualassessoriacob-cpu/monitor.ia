@@ -1688,3 +1688,718 @@ document.addEventListener("keydown",function(e){if(e.key==="Enter"&&ge("loginScr
         showApp();
     }
 })();
+
+/* =========================================================================
+   ███  MÓDULOS ADICIONAIS — Monitor.IA  (SOMENTE ADIÇÕES)  ███
+   Nada acima desta linha foi alterado.
+   Recursos: 1) PDI  2) Recorrência de Erros  3) Produtividade do Monitor
+             4) Evolução Individual (detalhe do operador)  5) Ranking de Evolução
+   Reaproveita helpers/variáveis já existentes (getMonthData, getWeekNum,
+   loadOperadores, loadUsers, escHtml, formatarData, chartInstances, etc.).
+   Integração feita por "wrapping" das funções originais (sem reescrevê-las).
+   ========================================================================= */
+
+/* ---------- Novas chaves de armazenamento (não conflitam) ---------- */
+var SK_PDI = "monitorIA_pdi";
+var SK_PDICFG = "monitorIA_pdi_config";
+function pdiLoad(){var r=localStorage.getItem(SK_PDI);return r?safeJSON(r,[]):[]}
+function pdiSave(a){localStorage.setItem(SK_PDI,JSON.stringify(a))}
+function pdiCfgLoad(){
+    var r=localStorage.getItem(SK_PDICFG),c=r?safeJSON(r,null):null;
+    if(c&&typeof c.threshold==="number")return c;
+    var d={threshold:80};localStorage.setItem(SK_PDICFG,JSON.stringify(d));return d;
+}
+function pdiCfgSave(c){localStorage.setItem(SK_PDICFG,JSON.stringify(c))}
+function extThreshold(){return pdiCfgLoad().threshold}
+
+/* ---------- Helpers de leitura (read-only, não mutam nada) ---------- */
+function extId(){return "pdi_"+Date.now()+"_"+Math.floor(Math.random()*100000)}
+function extShort(n){return (""+n).split(" ").slice(0,2).join(" ")}
+function extFmt(n){if(n===null||n===undefined||isNaN(n))return "—";var v=Math.round(n*10)/10;return (""+v)}
+function extSign(n){if(n===null||n===undefined||isNaN(n))return "—";var v=Math.round(n*10)/10;return (v>0?"+":"")+v}
+function extUserNome(login){
+    if(!login)return "—";
+    var us=loadUsers();
+    for(var i=0;i<us.length;i++){if(us[i].login===login)return us[i].nome}
+    return login;
+}
+/* Lista de meses (YYYY-MM) com avaliações no localStorage + mês atual */
+function extAvailableMonths(){
+    var set={};set[monthKey()]=true;
+    var ks=listAvalKeys();
+    for(var i=0;i<ks.length;i++){var m=mkFromStorageKey(ks[i]);if(m)set[m]=true}
+    return Object.keys(set).sort().reverse();
+}
+/* Linhas de avaliação (com nota) de um mês, já com info do operador */
+function extMonthRows(mk){
+    var md=getMonthData(mk),ops=loadOperadores(),info={};
+    for(var i=0;i<ops.length;i++)info[ops[i].nome]={turno:ops[i].turno,carteira:ops[i].carteira||"—"};
+    var rows=[],keys=Object.keys(md);
+    for(var i=0;i<keys.length;i++){
+        var p=keys[i].split("||");if(p.length<2)continue;
+        var nome=p[1],data=p[0],e=md[keys[i]];
+        if(!info[nome])continue;
+        if(e.nota===null||e.nota===undefined||e.nota==="")continue;
+        var nota=parseFloat(e.nota);if(isNaN(nota))continue;
+        rows.push({nome:nome,data:data,nota:nota,obs:e.obs||"",avaliador:e.avaliador||"",turno:info[nome].turno,carteira:info[nome].carteira});
+    }
+    return rows;
+}
+/* Avaliações cronológicas (asc por data) de um operador no mês */
+function extOpChrono(nome,mk){
+    var md=getMonthData(mk),arr=[],keys=Object.keys(md);
+    for(var i=0;i<keys.length;i++){
+        var p=keys[i].split("||");if(p.length<2||p[1]!==nome)continue;
+        var e=md[keys[i]];if(e.nota===null||e.nota===undefined||e.nota==="")continue;
+        var nota=parseFloat(e.nota);if(isNaN(nota))continue;
+        arr.push({data:p[0],nota:nota});
+    }
+    arr.sort(function(a,b){return a.data<b.data?-1:(a.data>b.data?1:0)});
+    return arr;
+}
+/* Nota média por semana operacional de um operador */
+function extOpWeekly(nome,mk){
+    var md=getMonthData(mk),byWeek={},keys=Object.keys(md);
+    for(var i=0;i<keys.length;i++){
+        var p=keys[i].split("||");if(p.length<2||p[1]!==nome)continue;
+        var e=md[keys[i]];if(e.nota===null||e.nota===undefined||e.nota==="")continue;
+        var nota=parseFloat(e.nota);if(isNaN(nota))continue;
+        var wk=getWeekNum(new Date(p[0]+"T12:00:00"));
+        if(!byWeek[wk])byWeek[wk]={soma:0,cnt:0};
+        byWeek[wk].soma+=nota;byWeek[wk].cnt++;
+    }
+    return byWeek;
+}
+/* Nº de semanas operacionais com dias no mês atual */
+function extWeeksCount(){
+    var now=new Date(),wks=getOperationalWeeks(now.getFullYear(),now.getMonth()),c=0;
+    for(var i=0;i<wks.length;i++){if(wks[i].length>0)c++}
+    return c||4;
+}
+/* KPI card padrão (mesmo visual do dashboard principal) */
+function extKpi(icon,label,value,color,sub){
+    return '<div class="ext-kpi"><div class="ext-kpi-label"><span class="material-icons-round">'+icon+'</span>'+label+'</div>'+
+        '<div class="ext-kpi-value" style="color:'+(color||'var(--text-primary)')+'">'+value+'</div>'+
+        (sub?'<div class="ext-kpi-sub">'+sub+'</div>':'')+'</div>';
+}
+function extActiveTab(){var b=qs(".nav-btn.active");return b?b.getAttribute("data-tab"):""}
+function extColorNota(v){return v>=90?"#00cec9":v>=80?"#74b9ff":v>=70?"#fdcb6e":"#ff6b6b"}
+
+/* =========================================================================
+   1) PDI — PLANO DE DESENVOLVIMENTO INDIVIDUAL
+   ========================================================================= */
+function pdiRender(){
+    var thr=extThreshold();
+    var list=pdiLoad();
+    /* ordenar: pendentes primeiro, depois por data de criação desc */
+    list.sort(function(a,b){
+        if(a.status!==b.status)return a.status==="pendente"?-1:1;
+        return (b.criadoEm||0)-(a.criadoEm||0);
+    });
+    var totalP=0,totalC=0;
+    for(var i=0;i<list.length;i++){if(list[i].status==="concluido")totalC++;else totalP++}
+    var html='';
+    /* Config do limite (valor configurável) */
+    html+='<div class="pdi-cfg"><span class="material-icons-round">rule</span>'+
+        '<div class="pdi-cfg-text"><strong>Limite para sugerir PDI</strong><span>Quando a nota da avaliação for inferior a este valor, o botão "Criar PDI" aparece na aba Avaliações.</span></div>'+
+        '<input type="number" min="0" max="100" id="pdiThresholdInput" value="'+thr+'" onchange="pdiSetThreshold(this.value)">'+
+        '</div>';
+    /* Resumo */
+    html+='<div class="pdi-summary">';
+    html+=extKpi("assignment","Total de PDIs",list.length,"var(--accent-light)");
+    html+=extKpi("pending_actions","Pendentes",totalP,"var(--warning)");
+    html+=extKpi("task_alt","Concluídos",totalC,"var(--success)");
+    html+='</div>';
+    html+='<div class="ext-section-title"><span class="material-icons-round">format_list_bulleted</span>Histórico de PDIs</div>';
+    if(list.length===0){
+        html+='<p class="ext-empty">Nenhum PDI criado ainda. Eles podem ser criados na aba <strong>Avaliações</strong> quando a nota ficar abaixo do limite, ou aqui mesmo no botão acima.</p>';
+        ge("pdiContent").innerHTML=html;return;
+    }
+    html+='<div class="pdi-grid">';
+    for(var i=0;i<list.length;i++){
+        var p=list[i],conc=p.status==="concluido";
+        html+='<div class="pdi-card '+(conc?'pdi-concluido':'pdi-pendente')+'">';
+        html+='<div class="pdi-card-top"><div style="min-width:0"><div class="pdi-card-op" title="'+escHtml(p.operador)+'">'+escHtml(p.operador)+'</div>'+
+            '<div class="pdi-card-meta">'+escHtml(p.carteira||'—')+' · '+escHtml(p.turno||'—')+' · criado '+formatarData(p.criadoData)+'</div></div>'+
+            '<span class="pdi-badge '+(conc?'b-conc':'b-pend')+'">'+(conc?'Concluído':'Pendente')+'</span></div>';
+        if(p.notaOrigem!==""&&p.notaOrigem!==null&&p.notaOrigem!==undefined){
+            html+='<div class="pdi-card-foot"><span class="pdi-nota-origem">Nota origem: '+p.notaOrigem+'</span></div>';
+        }
+        html+=pdiField("thumb_up","Ponto Forte",p.pontoForte);
+        html+=pdiField("trending_up","Ponto de Melhoria",p.pontoMelhoria);
+        html+=pdiField("handshake","Ação Combinada",p.acaoCombinada);
+        html+=pdiField("event","Data de Acompanhamento",p.dataAcompanhamento?formatarData(p.dataAcompanhamento):'—');
+        html+=pdiField("person","Responsável",p.responsavel||'—');
+        if(conc&&p.concluidoData)html+=pdiField("check_circle","Concluído em",formatarData(p.concluidoData));
+        html+='<div class="pdi-card-actions">';
+        if(conc){
+            html+='<button class="btn-sm" onclick="pdiReabrir(\''+p.id+'\')"><span class="material-icons-round">undo</span> Reabrir</button>';
+        }else{
+            html+='<button class="btn-sm" onclick="pdiConcluir(\''+p.id+'\')"><span class="material-icons-round">check</span> Concluir</button>';
+            html+='<button class="btn-sm" onclick="pdiModalForm(\''+p.id+'\')"><span class="material-icons-round">edit</span> Editar</button>';
+        }
+        html+='<button class="btn-sm danger" onclick="pdiConfirmRemover(\''+p.id+'\')"><span class="material-icons-round">delete</span> Remover</button>';
+        html+='</div></div>';
+    }
+    html+='</div>';
+    ge("pdiContent").innerHTML=html;
+}
+function pdiField(icon,label,val){
+    return '<div class="pdi-field"><div class="pdi-flabel"><span class="material-icons-round">'+icon+'</span>'+label+'</div>'+
+        '<div class="pdi-fval">'+(val?escHtml(val):'—')+'</div></div>';
+}
+function pdiSetThreshold(v){
+    var n=parseInt(v,10);if(isNaN(n)||n<0)n=0;if(n>100)n=100;
+    var c=pdiCfgLoad();c.threshold=n;pdiCfgSave(c);
+    /* Atualiza botões na aba Avaliações se estiver aberta */
+    if(extActiveTab()==="avaliacoes")renderAvaliacoes();
+}
+/* Injeta botão "CRIAR PDI" nos cards de avaliação com nota < limite (idempotente) */
+function pdiInjectButtons(){
+    if(extActiveTab()!=="avaliacoes")return;
+    var todayOps=getTodaySchedule(),md=getMonthData(),today=new Date().toISOString().split("T")[0],thr=extThreshold();
+    var pdis=pdiLoad();
+    for(var i=0;i<todayOps.length;i++){
+        var nome=todayOps[i],key=today+"||"+nome,av=md[key];
+        var card=ge("avalCard_"+i);if(!card)continue;
+        var actions=card.querySelector(".aval-card-actions");if(!actions)continue;
+        /* contagem de PDIs do operador */
+        var nPend=0,nConc=0;
+        for(var j=0;j<pdis.length;j++){if(pdis[j].operador===nome){if(pdis[j].status==="concluido")nConc++;else nPend++}}
+        /* tag de status de PDI (se existir algum) */
+        if((nPend+nConc)>0&&!card.querySelector(".aval-pdi-tag")){
+            var tag=document.createElement("div");
+            if(nPend>0){tag.className="aval-pdi-tag";tag.innerHTML='<span class="material-icons-round">assignment_late</span>'+nPend+' PDI(s) pendente(s)'}
+            else{tag.className="aval-pdi-tag ok";tag.innerHTML='<span class="material-icons-round">assignment_turned_in</span>'+nConc+' PDI(s) concluído(s)'}
+            actions.parentNode.insertBefore(tag,actions);
+        }
+        /* botão criar PDI quando nota lançada < limite */
+        var temNota=av&&av.nota!==null&&av.nota!==undefined&&av.nota!=="";
+        if(temNota&&parseFloat(av.nota)<thr&&!card.querySelector(".btn-criar-pdi")){
+            var btn=document.createElement("button");
+            btn.className="btn-criar-pdi";
+            btn.setAttribute("data-idx",i);
+            btn.innerHTML='<span class="material-icons-round">add_task</span> CRIAR PDI';
+            btn.onclick=(function(idx){return function(){pdiCriarFromAval(idx)}})(i);
+            actions.parentNode.appendChild(btn);
+        }
+    }
+}
+/* Abre formulário de PDI pré-preenchido a partir de uma avaliação */
+function pdiCriarFromAval(idx){
+    var todayOps=getTodaySchedule(),md=getMonthData(),today=new Date().toISOString().split("T")[0],ops=loadOperadores();
+    if(idx>=todayOps.length)return;
+    var nome=todayOps[idx],av=md[today+"||"+nome]||{};
+    var carteira="—",turno="—";
+    for(var o=0;o<ops.length;o++){if(ops[o].nome===nome){carteira=ops[o].carteira||"—";turno=ops[o].turno;break}}
+    pdiModalForm(null,{operador:nome,carteira:carteira,turno:turno,notaOrigem:(av.nota!==undefined?av.nota:""),dataAvaliacao:today,pontoMelhoria:av.obs||""});
+}
+/* Formulário (criar ou editar). editId=null cria; senão edita PDI existente */
+function pdiModalForm(editId,prefill){
+    var p=prefill||{};
+    if(editId){
+        var list=pdiLoad();
+        for(var i=0;i<list.length;i++){if(list[i].id===editId){p=list[i];break}}
+    }
+    var logged=getLoggedUser();
+    var respDefault=p.responsavel||(logged?logged.nome:"");
+    var opLabel=p.operador?escHtml(p.operador)+(p.carteira?' ('+escHtml(p.carteira)+' · '+escHtml(p.turno||'')+')':''):'';
+    var opField=p.operador
+        ? '<div class="field-group"><label>Operador</label><input type="text" value="'+escHtml(p.operador)+'" readonly style="opacity:.6"></div>'
+        : '<div class="field-group"><label>Operador</label>'+pdiOperadorSelect(p.operador)+'</div>';
+    var body=opField+
+        '<div class="field-group"><label>Ponto Forte</label><textarea id="pdiPontoForte" placeholder="O que o operador faz bem...">'+escHtml(p.pontoForte||"")+'</textarea></div>'+
+        '<div class="field-group"><label>Ponto de Melhoria</label><textarea id="pdiPontoMelhoria" placeholder="O que precisa evoluir...">'+escHtml(p.pontoMelhoria||"")+'</textarea></div>'+
+        '<div class="field-group"><label>Ação Combinada</label><textarea id="pdiAcao" placeholder="Ação acordada com o operador...">'+escHtml(p.acaoCombinada||"")+'</textarea></div>'+
+        '<div class="field-group"><label>Data de Acompanhamento</label><input type="date" id="pdiDataAcomp" value="'+(p.dataAcompanhamento||"")+'"></div>'+
+        '<div class="field-group"><label>Responsável</label><input type="text" id="pdiResp" value="'+escHtml(respDefault)+'" placeholder="Quem acompanhará"></div>'+
+        '<input type="hidden" id="pdiHidNota" value="'+(p.notaOrigem!==undefined&&p.notaOrigem!==null?p.notaOrigem:"")+'">'+
+        '<input type="hidden" id="pdiHidCart" value="'+escHtml(p.carteira||"")+'">'+
+        '<input type="hidden" id="pdiHidTurno" value="'+escHtml(p.turno||"")+'">'+
+        '<input type="hidden" id="pdiHidDataAval" value="'+(p.dataAvaliacao||"")+'">'+
+        '<button class="btn-primary" onclick="pdiSalvar('+(editId?"'"+editId+"'":"null")+')">'+(editId?'Salvar Alterações':'Criar PDI')+'</button>';
+    abrirModal(editId?"Editar PDI":"Criar PDI",body);
+}
+function pdiOperadorSelect(sel){
+    var ops=loadOperadores();
+    var h='<select id="pdiOpSelect"><option value="">— Selecione —</option>';
+    for(var i=0;i<ops.length;i++){
+        var nm=ops[i].nome;
+        h+='<option value="'+escHtml(nm)+'" data-cart="'+escHtml(ops[i].carteira||"")+'" data-turno="'+escHtml(ops[i].turno||"")+'"'+(sel===nm?' selected':'')+'>'+escHtml(nm)+'</option>';
+    }
+    h+='</select>';
+    return h;
+}
+function pdiSalvar(editId){
+    var list=pdiLoad();
+    var operador,carteira,turno;
+    var selEl=ge("pdiOpSelect");
+    if(selEl){
+        operador=selEl.value;
+        if(!operador){alert("Selecione um operador.");return}
+        var opt=selEl.options[selEl.selectedIndex];
+        carteira=opt.getAttribute("data-cart")||"";turno=opt.getAttribute("data-turno")||"";
+    }
+    var logged=getLoggedUser();
+    var dados={
+        pontoForte:ge("pdiPontoForte").value.trim(),
+        pontoMelhoria:ge("pdiPontoMelhoria").value.trim(),
+        acaoCombinada:ge("pdiAcao").value.trim(),
+        dataAcompanhamento:ge("pdiDataAcomp").value,
+        responsavel:ge("pdiResp").value.trim()
+    };
+    if(editId){
+        for(var i=0;i<list.length;i++){
+            if(list[i].id===editId){
+                list[i].pontoForte=dados.pontoForte;list[i].pontoMelhoria=dados.pontoMelhoria;
+                list[i].acaoCombinada=dados.acaoCombinada;list[i].dataAcompanhamento=dados.dataAcompanhamento;
+                list[i].responsavel=dados.responsavel;break;
+            }
+        }
+    }else{
+        var hidCart=ge("pdiHidCart").value,hidTurno=ge("pdiHidTurno").value,hidNota=ge("pdiHidNota").value,hidDataAval=ge("pdiHidDataAval").value;
+        var novo={
+            id:extId(),
+            operador:operador!==undefined?operador:"",
+            carteira:carteira!==undefined?carteira:hidCart,
+            turno:turno!==undefined?turno:hidTurno,
+            notaOrigem:(hidNota!==""?parseFloat(hidNota):""),
+            dataAvaliacao:hidDataAval||"",
+            pontoForte:dados.pontoForte,pontoMelhoria:dados.pontoMelhoria,
+            acaoCombinada:dados.acaoCombinada,dataAcompanhamento:dados.dataAcompanhamento,
+            responsavel:dados.responsavel,
+            status:"pendente",
+            criadoEm:Date.now(),
+            criadoData:new Date().toISOString().split("T")[0],
+            criadoPor:logged?logged.login:"",
+            concluidoData:""
+        };
+        list.push(novo);
+    }
+    pdiSave(list);
+    fecharModal();
+    /* re-render conforme aba ativa */
+    var t=extActiveTab();
+    if(t==="avaliacoes")renderAvaliacoes();
+    else if(t==="produtividade")prodRender();
+    else pdiRender();
+}
+function pdiConcluir(id){
+    var list=pdiLoad();
+    for(var i=0;i<list.length;i++){if(list[i].id===id){list[i].status="concluido";list[i].concluidoData=new Date().toISOString().split("T")[0]}}
+    pdiSave(list);pdiRender();
+}
+function pdiReabrir(id){
+    var list=pdiLoad();
+    for(var i=0;i<list.length;i++){if(list[i].id===id){list[i].status="pendente";list[i].concluidoData=""}}
+    pdiSave(list);pdiRender();
+}
+function pdiConfirmRemover(id){
+    var list=pdiLoad(),op="";
+    for(var i=0;i<list.length;i++){if(list[i].id===id){op=list[i].operador;break}}
+    abrirModal("Remover PDI",
+        '<p style="margin-bottom:16px;color:var(--text-secondary)">Remover o PDI de <strong style="color:var(--text-primary)">'+escHtml(op)+'</strong>?</p>'+
+        '<button class="btn-primary" style="background:var(--danger)" onclick="pdiRemover(\''+id+'\')">Confirmar Remoção</button>');
+}
+function pdiRemover(id){
+    var list=pdiLoad().filter(function(p){return p.id!==id});
+    pdiSave(list);fecharModal();
+    var t=extActiveTab();
+    if(t==="avaliacoes")renderAvaliacoes();else pdiRender();
+}
+
+/* =========================================================================
+   2) DASHBOARD DE RECORRÊNCIA DE ERROS
+   ========================================================================= */
+function recRender(){
+    destroyChart("recBar");destroyChart("recEvo");
+    var thr=extThreshold();
+    var rows=extMonthRows();
+    var total=rows.length;
+    var falhas=rows.filter(function(r){return r.nota<thr});
+    var nFalhas=falhas.length;
+    var pct=total>0?((nFalhas/total)*100).toFixed(1):"0.0";
+    /* falhas por operador */
+    var byOp={};
+    for(var i=0;i<falhas.length;i++){byOp[falhas[i].nome]=(byOp[falhas[i].nome]||0)+1}
+    var rank=[];for(var k in byOp)rank.push({nome:k,n:byOp[k]});
+    rank.sort(function(a,b){return b.n-a.n});
+    var opsComFalha=rank.length;
+    var html='';
+    html+='<p class="ext-empty" style="padding:0 0 14px">Definição de <strong>falha</strong>: avaliação com nota abaixo do limite de PDI (atualmente <strong style="color:var(--accent-light)">'+thr+'</strong>).</p>';
+    /* KPIs */
+    html+='<div class="ext-kpi-grid">';
+    html+=extKpi("fact_check","Avaliações no Mês",total,"var(--accent-light)");
+    html+=extKpi("error_outline","Falhas (< "+thr+")",nFalhas,"var(--danger)");
+    html+=extKpi("percent","Percentual de Falhas",pct+"%","var(--warning)");
+    html+=extKpi("groups","Operadores com Falha",opsComFalha,"var(--info)");
+    html+='</div>';
+    /* gráficos */
+    html+='<div class="ext-charts-row">';
+    html+='<div class="ext-chart-card"><h3><span class="material-icons-round">bar_chart</span>Falhas por Operador (Top 10)</h3><canvas id="chartRecBar"></canvas></div>';
+    html+='<div class="ext-chart-card"><h3><span class="material-icons-round">show_chart</span>Evolução Mensal de Falhas</h3><canvas id="chartRecEvo"></canvas></div>';
+    html+='</div>';
+    /* ranking top 10 */
+    html+='<div class="ext-rank"><h3><span class="material-icons-round">leaderboard</span>Ranking de Falhas — Top 10</h3>';
+    if(rank.length===0){html+='<p class="ext-empty">Nenhuma falha registrada no mês. 🎉</p>'}
+    else{
+        var maxN=rank[0].n||1;
+        var top=rank.slice(0,10);
+        for(var i=0;i<top.length;i++){
+            var w=Math.round((top[i].n/maxN)*100);
+            html+='<div class="rec-bar-row"><div class="rec-bar-label" title="'+escHtml(top[i].nome)+'">'+(i+1)+'. '+escHtml(extShort(top[i].nome))+'</div>'+
+                '<div class="rec-bar-track"><div class="rec-bar-fill" style="width:'+w+'%"></div></div>'+
+                '<div class="rec-bar-val">'+top[i].n+'</div></div>';
+        }
+    }
+    html+='</div>';
+    ge("recContent").innerHTML=html;
+    /* Chart: barras top 10 */
+    var labels=[],data=[],colors=[];
+    var top=rank.slice(0,10);
+    for(var i=0;i<top.length;i++){labels.push(extShort(top[i].nome));data.push(top[i].n);colors.push("#6c5ce7")}
+    var c1=ge("chartRecBar");
+    if(c1){
+        chartInstances["recBar"]=new Chart(c1.getContext("2d"),{type:"bar",data:{labels:labels.length?labels:["—"],datasets:[{label:"Falhas",data:data.length?data:[0],backgroundColor:colors.length?colors:["#6c5ce7"],borderWidth:0}]},
+            options:{responsive:true,maintainAspectRatio:true,indexAxis:"y",plugins:{legend:{display:false}},
+            scales:{x:{beginAtZero:true,ticks:{color:"#5c6078",font:{size:10},stepSize:1},grid:{color:"#2a2d3e"}},y:{ticks:{color:"#8b8fa7",font:{size:10}},grid:{display:false}}}}});
+    }
+    /* Chart: evolução mensal */
+    var months=extAvailableMonths().slice().reverse();
+    var mLabels=[],mData=[];
+    for(var i=0;i<months.length;i++){
+        var rws=extMonthRows(months[i]),f=0;
+        for(var j=0;j<rws.length;j++){if(rws[j].nota<thr)f++}
+        mLabels.push(months[i]);mData.push(f);
+    }
+    var c2=ge("chartRecEvo");
+    if(c2){
+        chartInstances["recEvo"]=new Chart(c2.getContext("2d"),{type:"line",data:{labels:mLabels.length?mLabels:["—"],datasets:[{label:"Falhas",data:mData.length?mData:[0],borderColor:"#4F8CFF",backgroundColor:"rgba(79,140,255,.15)",borderWidth:2,fill:true,tension:.3,pointBackgroundColor:"#4F8CFF",pointRadius:4}]},
+            options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},
+            scales:{x:{ticks:{color:"#8b8fa7",font:{size:10}},grid:{display:false}},y:{beginAtZero:true,ticks:{color:"#5c6078",font:{size:10},stepSize:1},grid:{color:"#2a2d3e"}}}}});
+    }
+}
+
+/* =========================================================================
+   3) DASHBOARD DE PRODUTIVIDADE DO MONITOR
+   ========================================================================= */
+var _prodMes="",_prodMonitor="",_prodCarteira="",_prodTurno="";
+function prodRender(){
+    var months=extAvailableMonths();
+    if(!_prodMes||months.indexOf(_prodMes)===-1)_prodMes=months[0]||monthKey();
+    var rowsAll=extMonthRows(_prodMes);
+    /* opções de filtro */
+    var carteirasSet={},monitorSet={};
+    for(var i=0;i<rowsAll.length;i++){carteirasSet[rowsAll[i].carteira]=true;if(rowsAll[i].avaliador)monitorSet[rowsAll[i].avaliador]=true}
+    /* aplicar filtros carteira/turno */
+    var rowsCT=rowsAll.filter(function(r){
+        if(_prodCarteira&&r.carteira!==_prodCarteira)return false;
+        if(_prodTurno&&r.turno!==_prodTurno)return false;
+        return true;
+    });
+    /* filtrar por monitor */
+    var rows=_prodMonitor?rowsCT.filter(function(r){return r.avaliador===_prodMonitor}):rowsCT;
+    /* KPIs */
+    var realizadas=rows.length;
+    var soma=0;for(var i=0;i<rows.length;i++)soma+=rows[i].nota;
+    var media=realizadas>0?(soma/realizadas).toFixed(1):"—";
+    var opsSet={},ultima="";
+    for(var i=0;i<rows.length;i++){opsSet[rows[i].nome]=true;if(rows[i].data>ultima)ultima=rows[i].data}
+    var opsAval=Object.keys(opsSet).length;
+    var pendentes=(_prodMes===monthKey())?totalStats().pendentes:"—";
+    /* PDIs */
+    var pdis=pdiLoad(),pCri=0,pConc=0;
+    for(var i=0;i<pdis.length;i++){
+        if(_prodMonitor&&pdis[i].criadoPor!==_prodMonitor)continue;
+        pCri++;if(pdis[i].status==="concluido")pConc++;
+    }
+    var html='';
+    /* toolbar de filtros */
+    html+='<div class="ext-toolbar">';
+    html+='<span class="ext-filter-label">Monitor</span><select class="ext-filter-select" onchange="prodMonitorChange(this.value)"><option value="">Todos</option>';
+    var monitors=Object.keys(monitorSet);
+    /* incluir também usuários cadastrados */
+    var us=loadUsers();for(var i=0;i<us.length;i++){if(monitorSet[us[i].login]===undefined)monitorSet[us[i].login]=true}
+    monitors=Object.keys(monitorSet);
+    for(var i=0;i<monitors.length;i++)html+='<option value="'+escHtml(monitors[i])+'"'+(_prodMonitor===monitors[i]?' selected':'')+'>'+escHtml(extUserNome(monitors[i]))+'</option>';
+    html+='</select>';
+    html+='<span class="ext-filter-label">Período</span><select class="ext-filter-select" onchange="prodMesChange(this.value)">';
+    for(var i=0;i<months.length;i++)html+='<option value="'+months[i]+'"'+(_prodMes===months[i]?' selected':'')+'>'+months[i]+'</option>';
+    html+='</select>';
+    html+='<span class="ext-filter-label">Carteira</span><select class="ext-filter-select" onchange="prodCarteiraChange(this.value)"><option value="">Todas</option>';
+    var carts=Object.keys(carteirasSet);for(var i=0;i<carts.length;i++)html+='<option value="'+escHtml(carts[i])+'"'+(_prodCarteira===carts[i]?' selected':'')+'>'+escHtml(carts[i])+'</option>';
+    html+='</select>';
+    html+='<span class="ext-filter-label">Turno</span><select class="ext-filter-select" onchange="prodTurnoChange(this.value)"><option value="">Todos</option>'+
+        '<option value="Manhã"'+(_prodTurno==="Manhã"?' selected':'')+'>Manhã</option>'+
+        '<option value="Tarde"'+(_prodTurno==="Tarde"?' selected':'')+'>Tarde</option></select>';
+    html+='</div>';
+    /* KPIs (mesmo padrão do Dashboard Principal) */
+    html+='<div class="ext-kpi-grid">';
+    html+=extKpi("assignment_turned_in","Avaliações Realizadas",realizadas,"var(--success)");
+    html+=extKpi("pending_actions","Pendentes (mês)",pendentes,"var(--warning)");
+    html+=extKpi("functions","Média Aplicada",media,"var(--accent-light)");
+    html+=extKpi("assignment_ind","PDIs Criados",pCri,"var(--info)");
+    html+=extKpi("task_alt","PDIs Concluídos",pConc,"var(--success)");
+    html+=extKpi("groups","Operadores Avaliados",opsAval,"var(--accent-light)");
+    html+=extKpi("event_available","Última Avaliação",ultima?formatarData(ultima):"—","var(--text-primary)");
+    html+='</div>';
+    /* tabela resumo por monitor (respeitando carteira/turno) */
+    var byMon={};
+    for(var i=0;i<rowsCT.length;i++){
+        var a=rowsCT[i].avaliador||"(sem registro)";
+        if(!byMon[a])byMon[a]={n:0,soma:0,ops:{},ultima:""};
+        byMon[a].n++;byMon[a].soma+=rowsCT[i].nota;byMon[a].ops[rowsCT[i].nome]=true;
+        if(rowsCT[i].data>byMon[a].ultima)byMon[a].ultima=rowsCT[i].data;
+    }
+    var monRows=[];for(var m in byMon)monRows.push({login:m,d:byMon[m]});
+    monRows.sort(function(a,b){return b.d.n-a.d.n});
+    html+='<div class="ext-section-title"><span class="material-icons-round">table_rows</span>Resumo por Monitor</div>';
+    html+='<div class="ext-table-wrapper"><table><thead><tr><th>Monitor</th><th>Avaliações</th><th>Média</th><th>Operadores</th><th>Última</th></tr></thead><tbody>';
+    if(monRows.length===0)html+='<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Sem avaliações no período.</td></tr>';
+    for(var i=0;i<monRows.length;i++){
+        var d=monRows[i].d,med=d.n>0?(d.soma/d.n).toFixed(1):"—";
+        html+='<tr><td class="prod-monitor-name">'+escHtml(extUserNome(monRows[i].login))+'</td><td>'+d.n+'</td><td style="color:var(--success);font-weight:700">'+med+'</td><td>'+Object.keys(d.ops).length+'</td><td>'+(d.ultima?formatarData(d.ultima):"—")+'</td></tr>';
+    }
+    html+='</tbody></table></div>';
+    ge("prodContent").innerHTML=html;
+}
+function prodMonitorChange(v){_prodMonitor=v;prodRender()}
+function prodMesChange(v){_prodMes=v;prodRender()}
+function prodCarteiraChange(v){_prodCarteira=v;prodRender()}
+function prodTurnoChange(v){_prodTurno=v;prodRender()}
+
+/* =========================================================================
+   4) EVOLUÇÃO INDIVIDUAL — detalhe do operador
+   ========================================================================= */
+var _opDetailNome="",_opDetailSub="resumo";
+function opDetailOpen(nome){
+    if(!nome)return;
+    _opDetailNome=nome;_opDetailSub="resumo";
+    var ops=loadOperadores(),carteira="—",turno="—";
+    for(var i=0;i<ops.length;i++){if(ops[i].nome===nome){carteira=ops[i].carteira||"—";turno=ops[i].turno;break}}
+    ge("opDetailName").textContent=nome;
+    ge("opDetailSub").textContent=carteira+" · "+turno;
+    /* reset tabs */
+    var tabs=qsa(".opdetail-tab");
+    for(var i=0;i<tabs.length;i++)tabs[i].classList.toggle("active",tabs[i].getAttribute("data-sub")==="resumo");
+    ge("opDetailOverlay").style.display="flex";
+    opDetailRender();
+}
+function opDetailClose(){
+    destroyChart("opEvoLine");
+    ge("opDetailOverlay").style.display="none";
+    _opDetailNome="";
+}
+function opDetailSwitch(sub){
+    _opDetailSub=sub;
+    var tabs=qsa(".opdetail-tab");
+    for(var i=0;i<tabs.length;i++)tabs[i].classList.toggle("active",tabs[i].getAttribute("data-sub")===sub);
+    opDetailRender();
+}
+function opDetailRender(){
+    if(_opDetailSub==="evolucao")opDetailRenderEvo();
+    else opDetailRenderResumo();
+}
+function opDetailRenderResumo(){
+    destroyChart("opEvoLine");
+    var nome=_opDetailNome,chrono=extOpChrono(nome);
+    var notas=chrono.map(function(c){return c.nota});
+    var ops=loadOperadores(),carteira="—",turno="—";
+    for(var i=0;i<ops.length;i++){if(ops[i].nome===nome){carteira=ops[i].carteira||"—";turno=ops[i].turno;break}}
+    var media=notas.length?(notas.reduce(function(a,b){return a+b},0)/notas.length).toFixed(1):"—";
+    var melhor=notas.length?Math.max.apply(null,notas).toFixed(1):"—";
+    var pior=notas.length?Math.min.apply(null,notas).toFixed(1):"—";
+    var ultima=chrono.length?chrono[chrono.length-1]:null;
+    /* PDIs do operador */
+    var pdis=pdiLoad(),nP=0,nC=0;
+    for(var i=0;i<pdis.length;i++){if(pdis[i].operador===nome){if(pdis[i].status==="concluido")nC++;else nP++}}
+    var html='<div class="opdetail-resumo-grid">';
+    html+='<div class="opdetail-line"><span>Carteira</span><span>'+escHtml(carteira)+'</span></div>';
+    html+='<div class="opdetail-line"><span>Turno</span><span>'+escHtml(turno)+'</span></div>';
+    html+='<div class="opdetail-line"><span>Avaliações no mês</span><span>'+notas.length+'</span></div>';
+    html+='<div class="opdetail-line"><span>Média do mês</span><span style="color:var(--accent-light)">'+media+'</span></div>';
+    html+='<div class="opdetail-line"><span>Melhor nota</span><span style="color:var(--success)">'+melhor+'</span></div>';
+    html+='<div class="opdetail-line"><span>Pior nota</span><span style="color:var(--danger)">'+pior+'</span></div>';
+    html+='<div class="opdetail-line"><span>Última avaliação</span><span>'+(ultima?formatarData(ultima.data)+' ('+ultima.nota+')':'—')+'</span></div>';
+    html+='<div class="opdetail-line"><span>PDIs</span><span>'+nP+' pend. · '+nC+' concl.</span></div>';
+    html+='</div>';
+    if(nP>0||nC>0||notas.length===0){
+        html+='<button class="btn-criar-pdi" style="margin-top:14px" onclick="opDetailNovoPdi()"><span class="material-icons-round">add_task</span> Criar PDI para este operador</button>';
+    }else{
+        html+='<button class="btn-criar-pdi" style="margin-top:14px" onclick="opDetailNovoPdi()"><span class="material-icons-round">add_task</span> Criar PDI para este operador</button>';
+    }
+    ge("opDetailBody").innerHTML=html;
+}
+function opDetailNovoPdi(){
+    var nome=_opDetailNome,ops=loadOperadores(),carteira="",turno="";
+    for(var i=0;i<ops.length;i++){if(ops[i].nome===nome){carteira=ops[i].carteira||"";turno=ops[i].turno;break}}
+    opDetailClose();
+    pdiModalForm(null,{operador:nome,carteira:carteira,turno:turno,notaOrigem:"",dataAvaliacao:new Date().toISOString().split("T")[0]});
+}
+function opDetailRenderEvo(){
+    destroyChart("opEvoLine");
+    var nome=_opDetailNome;
+    var weeksCount=extWeeksCount();
+    var byWeek=extOpWeekly(nome);
+    var weekVals=[],labels=[];
+    for(var w=1;w<=weeksCount;w++){
+        labels.push("Semana "+w);
+        if(byWeek[w]&&byWeek[w].cnt>0)weekVals.push(Math.round((byWeek[w].soma/byWeek[w].cnt)*10)/10);
+        else weekVals.push(null);
+    }
+    var present=weekVals.filter(function(v){return v!==null});
+    var media=present.length?(present.reduce(function(a,b){return a+b},0)/present.length).toFixed(1):"—";
+    var melhor=present.length?Math.max.apply(null,present).toFixed(1):"—";
+    var pior=present.length?Math.min.apply(null,present).toFixed(1):"—";
+    /* tendência: primeira vs última semana com dados */
+    var first=null,last=null;
+    for(var i=0;i<weekVals.length;i++){if(weekVals[i]!==null){if(first===null)first=weekVals[i];last=weekVals[i]}}
+    var trendCls="flat",trendIco="trending_flat",trendTxt="Estável";
+    if(first!==null&&last!==null){
+        var diff=last-first;
+        if(diff>0.05){trendCls="up";trendIco="trending_up";trendTxt="Em evolução (+"+extFmt(diff)+")"}
+        else if(diff<-0.05){trendCls="down";trendIco="trending_down";trendTxt="Em queda ("+extFmt(diff)+")"}
+        else{trendCls="flat";trendIco="trending_flat";trendTxt="Estável"}
+    }
+    var html='';
+    html+='<div class="evoind-kpis">';
+    html+='<div class="evoind-kpi"><div class="evoind-kpi-label">Média</div><div class="evoind-kpi-val" style="color:var(--accent-light)">'+media+'</div></div>';
+    html+='<div class="evoind-kpi"><div class="evoind-kpi-label">Melhor</div><div class="evoind-kpi-val" style="color:var(--success)">'+melhor+'</div></div>';
+    html+='<div class="evoind-kpi"><div class="evoind-kpi-label">Pior</div><div class="evoind-kpi-val" style="color:var(--danger)">'+pior+'</div></div>';
+    html+='</div>';
+    html+='<div style="text-align:center;margin-bottom:14px"><span class="evoind-trend '+trendCls+'"><span class="material-icons-round" style="font-size:16px">'+trendIco+'</span>'+trendTxt+'</span></div>';
+    html+='<div class="ext-chart-card" style="margin-bottom:16px"><h3><span class="material-icons-round">show_chart</span>Nota por Semana</h3><canvas id="chartOpEvo"></canvas></div>';
+    /* barras por semana */
+    html+='<div class="evoind-weeks">';
+    for(var i=0;i<labels.length;i++){
+        var v=weekVals[i];
+        var w=v!==null?Math.round(v):0;
+        var col=v!==null?extColorNota(v):"var(--border)";
+        html+='<div class="evoind-week-row"><div class="evoind-week-name">'+labels[i]+'</div>'+
+            '<div class="evoind-week-track"><div class="evoind-week-fill" style="width:'+w+'%;background:'+col+'"></div></div>'+
+            '<div class="evoind-week-val" style="color:'+(v!==null?col:'var(--text-muted)')+'">'+(v!==null?extFmt(v):'—')+'</div></div>';
+    }
+    html+='</div>';
+    ge("opDetailBody").innerHTML=html;
+    /* line chart */
+    var c=ge("chartOpEvo");
+    if(c){
+        chartInstances["opEvoLine"]=new Chart(c.getContext("2d"),{type:"line",data:{labels:labels,datasets:[{label:"Nota",data:weekVals,borderColor:"#6c5ce7",backgroundColor:"rgba(108,92,231,.15)",borderWidth:2,fill:true,tension:.3,spanGaps:true,pointBackgroundColor:"#a29bfe",pointRadius:4}]},
+            options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},
+            scales:{x:{ticks:{color:"#8b8fa7",font:{size:10}},grid:{display:false}},y:{beginAtZero:true,max:100,ticks:{color:"#5c6078",font:{size:10}},grid:{color:"#2a2d3e"}}}}});
+    }
+}
+
+/* =========================================================================
+   5) RANKING DE EVOLUÇÃO   (fórmula: Última Nota - Primeira Nota)
+   ========================================================================= */
+function rkevRender(){
+    var ops=loadOperadores(),info={};
+    for(var i=0;i<ops.length;i++)info[ops[i].nome]={turno:ops[i].turno,carteira:ops[i].carteira||"—"};
+    var list=[];
+    for(var i=0;i<ops.length;i++){
+        var chrono=extOpChrono(ops[i].nome);
+        if(chrono.length<2)continue;
+        var first=chrono[0].nota,last=chrono[chrono.length-1].nota;
+        list.push({nome:ops[i].nome,carteira:info[ops[i].nome].carteira,turno:info[ops[i].nome].turno,first:first,last:last,delta:last-first,n:chrono.length});
+    }
+    list.sort(function(a,b){return b.delta-a.delta});
+    var html='';
+    if(list.length===0){
+        html+='<p class="ext-empty">O ranking de evolução precisa de pelo menos <strong>2 avaliações</strong> por operador no mês. Assim que houver mais avaliações, ele aparece aqui.</p>';
+        ge("rkevContent").innerHTML=html;return;
+    }
+    /* indicadores */
+    var somaDelta=0,estaveis=0;
+    for(var i=0;i<list.length;i++){somaDelta+=list[i].delta;if(Math.abs(list[i].delta)<=2)estaveis++}
+    var mediaDelta=(somaDelta/list.length);
+    var maior=list[0],menor=list[list.length-1];
+    html+='<div class="ext-kpi-grid">';
+    html+=extKpi("rocket_launch","Maior Evolução",extSign(maior.delta),"var(--success)",escHtml(extShort(maior.nome)));
+    html+=extKpi("south","Maior Regressão",extSign(menor.delta),menor.delta<0?"var(--danger)":"var(--text-secondary)",escHtml(extShort(menor.nome)));
+    html+=extKpi("drag_handle","Estáveis (±2)",estaveis,"var(--info)","de "+list.length+" operadores");
+    html+=extKpi("functions","Evolução Média",extSign(mediaDelta),mediaDelta>=0?"var(--success)":"var(--danger)");
+    html+='</div>';
+    /* pódio top 3 */
+    html+='<div class="rkev-podio"><h3><span class="material-icons-round">emoji_events</span>Pódio — Maiores Evoluções</h3><div class="rkev-podio-grid">';
+    var cls=["ouro","prata","bronze"],medal=["🥇","🥈","🥉"],posTxt=["1º Lugar","2º Lugar","3º Lugar"];
+    var n=Math.min(3,list.length);
+    for(var i=0;i<n;i++){
+        var r=list[i],dc=r.delta>0?"rkev-delta-pos":(r.delta<0?"rkev-delta-neg":"rkev-delta-zero");
+        html+='<div class="rkev-podio-card '+cls[i]+'">';
+        html+='<div class="rkev-medal">'+medal[i]+'</div>';
+        html+='<div class="rkev-podio-pos">'+posTxt[i]+'</div>';
+        html+='<div class="rkev-podio-nome" title="'+escHtml(r.nome)+'">'+escHtml(r.nome)+'</div>';
+        html+='<div class="rkev-podio-delta '+dc+'">'+extSign(r.delta)+'</div>';
+        html+='<div class="rkev-podio-meta">'+escHtml(r.carteira)+' · '+r.first+' → '+r.last+'</div>';
+        html+='</div>';
+    }
+    html+='</div></div>';
+    /* ranking completo */
+    html+='<div class="ext-rank"><h3><span class="material-icons-round">leaderboard</span>Ranking Completo de Evolução</h3>';
+    for(var i=0;i<list.length;i++){
+        var r=list[i],dc=r.delta>0?"rkev-delta-pos":(r.delta<0?"rkev-delta-neg":"rkev-delta-zero");
+        var medalPos=i<3?medal[i]:(i+1);
+        html+='<div class="ext-rank-item"><div class="ext-rank-pos">'+medalPos+'</div>'+
+            '<div class="ext-rank-main"><div class="ext-rank-name" title="'+escHtml(r.nome)+'">'+escHtml(r.nome)+'</div>'+
+            '<div class="ext-rank-sub">'+escHtml(r.carteira)+' · '+escHtml(r.turno)+' · '+r.n+' aval. · '+r.first+' → '+r.last+'</div></div>'+
+            '<div class="ext-rank-val '+dc+'">'+extSign(r.delta)+'</div></div>';
+    }
+    html+='</div>';
+    ge("rkevContent").innerHTML=html;
+}
+
+/* =========================================================================
+   INTEGRAÇÃO POR WRAPPING — preserva 100% das funções originais
+   ========================================================================= */
+/* novas abas adicionadas ao switchTab */
+var _extOrigSwitchTab=switchTab;
+switchTab=function(tab){
+    _extOrigSwitchTab(tab);
+    if(tab==="pdi")pdiRender();
+    else if(tab==="recorrencia")recRender();
+    else if(tab==="produtividade")prodRender();
+    else if(tab==="rankingEvolucao")rkevRender();
+};
+/* injeta botões de PDI após cada render de Avaliações */
+var _extOrigRenderAval=renderAvaliacoes;
+renderAvaliacoes=function(){
+    _extOrigRenderAval();
+    try{pdiInjectButtons()}catch(e){}
+};
+/* garante visibilidade das novas abas na sidebar para todos os cargos */
+var _extOrigAjustarNav=ajustarNavPorCargo;
+ajustarNavPorCargo=function(){
+    _extOrigAjustarNav();
+    extShowExtNav();
+};
+function extShowExtNav(){
+    var tabs=["pdi","recorrencia","produtividade","rankingEvolucao"];
+    for(var i=0;i<tabs.length;i++){
+        var b=qs('.nav-btn[data-tab="'+tabs[i]+'"]');
+        if(b)b.style.display="";
+    }
+}
+/* clique no card de operador abre o detalhe (Evolução Individual) */
+document.addEventListener("click",function(e){
+    var grid=ge("operadoresGrid");if(!grid)return;
+    var card=e.target&&e.target.closest?e.target.closest(".operador-card"):null;
+    if(card&&grid.contains(card)){
+        var nameEl=card.querySelector(".operador-name");
+        if(nameEl){
+            var nome=nameEl.getAttribute("title")||nameEl.textContent;
+            if(nome)opDetailOpen(nome.trim());
+        }
+    }
+});
+/* fecha overlay de detalhe com ESC */
+document.addEventListener("keydown",function(e){
+    if(e.key==="Escape"&&ge("opDetailOverlay")&&ge("opDetailOverlay").style.display!=="none")opDetailClose();
+});
+/* se o app já está visível (carregado antes deste bloco), exibir novas abas agora */
+(function(){
+    try{
+        var ac=ge("appContainer");
+        if(ac&&ac.style.display!=="none")extShowExtNav();
+    }catch(e){}
+})();

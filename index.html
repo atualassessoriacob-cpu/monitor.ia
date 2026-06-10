@@ -59,6 +59,18 @@
             <button class="nav-btn" data-tab="calibragem" onclick="switchTab('calibragem')">
                 <span class="material-icons-round">tune</span><span>Calibragem</span>
             </button>
+            <button class="nav-btn" data-tab="pdi" onclick="switchTab('pdi')">
+                <span class="material-icons-round">assignment_ind</span><span>PDI</span>
+            </button>
+            <button class="nav-btn" data-tab="recorrencia" onclick="switchTab('recorrencia')">
+                <span class="material-icons-round">bug_report</span><span>Recorrência</span>
+            </button>
+            <button class="nav-btn" data-tab="produtividade" onclick="switchTab('produtividade')">
+                <span class="material-icons-round">insights</span><span>Produtividade</span>
+            </button>
+            <button class="nav-btn" data-tab="rankingEvolucao" onclick="switchTab('rankingEvolucao')">
+                <span class="material-icons-round">military_tech</span><span>Ranking Evolução</span>
+            </button>
             <button class="nav-btn" data-tab="relatorios" onclick="switchTab('relatorios')">
                 <span class="material-icons-round">description</span><span>Relatórios</span>
             </button>
@@ -129,6 +141,30 @@
             <div class="calibragem-content" id="calibragemContent"></div>
         </section>
 
+        <!-- TAB: PDI (Plano de Desenvolvimento Individual) -->
+        <section id="tab-pdi" class="tab-content">
+            <div class="tab-header"><h2>PDI — Plano de Desenvolvimento Individual</h2><p class="tab-subtitle">Planos de ação vinculados às avaliações</p></div>
+            <div class="pdi-content" id="pdiContent"></div>
+        </section>
+
+        <!-- TAB: RECORRÊNCIA DE ERROS -->
+        <section id="tab-recorrencia" class="tab-content">
+            <div class="tab-header"><h2>Recorrência de Erros</h2><p class="tab-subtitle">Análise de falhas a partir das avaliações do mês</p></div>
+            <div class="rec-content" id="recContent"></div>
+        </section>
+
+        <!-- TAB: PRODUTIVIDADE DO MONITOR -->
+        <section id="tab-produtividade" class="tab-content">
+            <div class="tab-header"><h2>Produtividade do Monitor</h2><p class="tab-subtitle">Indicadores de desempenho por monitor</p></div>
+            <div class="prod-content" id="prodContent"></div>
+        </section>
+
+        <!-- TAB: RANKING DE EVOLUÇÃO -->
+        <section id="tab-rankingEvolucao" class="tab-content">
+            <div class="tab-header"><h2>Ranking de Evolução</h2><p class="tab-subtitle">Variação da nota no mês — última nota menos primeira</p></div>
+            <div class="rkev-content" id="rkevContent"></div>
+        </section>
+
         <!-- TAB: RELATÓRIOS -->
         <section id="tab-relatorios" class="tab-content">
             <div class="tab-header"><h2>Relatórios</h2><p class="tab-subtitle">Geração de relatórios em PDF</p></div>
@@ -151,6 +187,24 @@
             <button class="modal-close" onclick="fecharModal()"><span class="material-icons-round">close</span></button>
         </div>
         <div class="modal-body" id="modalBody"></div>
+    </div>
+</div>
+
+<!-- ===== DETALHE DO OPERADOR (Evolução Individual) ===== -->
+<div id="opDetailOverlay" class="opdetail-overlay" style="display:none;" onclick="opDetailClose()">
+    <div class="opdetail-box" onclick="event.stopPropagation()">
+        <div class="opdetail-header">
+            <div class="opdetail-head-info">
+                <h3 id="opDetailName">Operador</h3>
+                <div class="opdetail-sub" id="opDetailSub"></div>
+            </div>
+            <button class="modal-close" onclick="opDetailClose()"><span class="material-icons-round">close</span></button>
+        </div>
+        <div class="opdetail-tabs">
+            <button class="opdetail-tab active" data-sub="resumo" onclick="opDetailSwitch('resumo')"><span class="material-icons-round">summarize</span> Resumo</button>
+            <button class="opdetail-tab" data-sub="evolucao" onclick="opDetailSwitch('evolucao')"><span class="material-icons-round">trending_up</span> Evolução</button>
+        </div>
+        <div class="opdetail-body" id="opDetailBody"></div>
     </div>
 </div>
 

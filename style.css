@@ -367,3 +367,177 @@ body{font-family:var(--font);background:var(--bg-primary);color:var(--text-prima
 
 @media(max-width:768px){.podio-grid{grid-template-columns:repeat(2,1fr)}.calib-obs{max-width:140px}}
 @media(max-width:480px){.podio-grid{grid-template-columns:1fr}}
+
+/* =========================================================
+   MÓDULOS ADICIONAIS (somente adições — não altera nada acima)
+   PDI · Recorrência · Produtividade · Evolução Individual · Ranking Evolução
+   Reaproveita 100% das variáveis de identidade visual do :root.
+   ========================================================= */
+
+/* ---- Toolbar/seções genéricas reutilizáveis ---- */
+.ext-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.ext-filter-select{background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:var(--font);font-size:12px;padding:9px 10px;outline:none;cursor:pointer;transition:border-color .2s}
+.ext-filter-select:focus{border-color:var(--accent)}
+.ext-filter-select option{background:var(--bg-card)}
+.ext-filter-label{font-size:11px;color:var(--text-muted);margin-right:2px;align-self:center}
+.ext-section-title{font-size:13px;font-weight:700;color:var(--text-secondary);margin:20px 0 12px;display:flex;align-items:center;gap:6px}
+.ext-section-title .material-icons-round{font-size:18px;color:var(--accent)}
+.ext-empty{color:var(--text-muted);font-size:12px;padding:14px 0}
+.ext-chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.ext-chart-card h3{font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.ext-chart-card h3 .material-icons-round{font-size:18px;color:var(--accent)}
+.ext-charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+
+/* ---- KPI cards (mesmo padrão do dashboard principal) ---- */
+.ext-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px}
+.ext-kpi{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;transition:border-color .2s}
+.ext-kpi:hover{border-color:var(--accent)}
+.ext-kpi-label{color:var(--text-muted);font-size:11px;display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.ext-kpi-label .material-icons-round{font-size:16px}
+.ext-kpi-value{font-size:26px;font-weight:800}
+.ext-kpi-sub{font-size:11px;color:var(--text-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- Ranking list genérico ---- */
+.ext-rank{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px}
+.ext-rank h3{font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.ext-rank h3 .material-icons-round{font-size:18px;color:var(--accent)}
+.ext-rank-item{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)}
+.ext-rank-item:last-child{border-bottom:none}
+.ext-rank-pos{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;background:var(--bg-input);color:var(--text-secondary)}
+.ext-rank-main{flex:1;min-width:0}
+.ext-rank-name{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ext-rank-sub{font-size:10px;color:var(--text-muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ext-rank-val{font-size:14px;font-weight:800;white-space:nowrap}
+
+/* ---- Tabela genérica ---- */
+.ext-table-wrapper{overflow-x:auto}
+.ext-table-wrapper table{width:100%;border-collapse:collapse;background:var(--bg-card);border-radius:var(--radius);overflow:hidden}
+.ext-table-wrapper th,.ext-table-wrapper td{padding:10px 12px;text-align:left;font-size:12px;border-bottom:1px solid var(--border)}
+.ext-table-wrapper th{background:var(--bg-secondary);color:var(--text-muted);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.ext-table-wrapper td{color:var(--text-secondary)}
+
+/* =========================================================
+   1. PDI
+   ========================================================= */
+.pdi-content{display:flex;flex-direction:column}
+.pdi-cfg{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.pdi-cfg .material-icons-round{color:var(--accent)}
+.pdi-cfg-text{flex:1;min-width:180px}
+.pdi-cfg-text strong{display:block;font-size:13px;color:var(--text-primary)}
+.pdi-cfg-text span{font-size:11px;color:var(--text-muted)}
+.pdi-cfg input{width:90px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-family:var(--font);font-size:14px;font-weight:700;padding:8px 10px;outline:none;text-align:center}
+.pdi-cfg input:focus{border-color:var(--accent)}
+.pdi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:6px}
+.pdi-card{background:var(--bg-card);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:var(--radius);padding:16px;transition:border-color .2s,transform .2s}
+.pdi-card:hover{transform:translateY(-2px)}
+.pdi-card.pdi-pendente{border-left-color:var(--warning)}
+.pdi-card.pdi-concluido{border-left-color:var(--success)}
+.pdi-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:10px}
+.pdi-card-op{font-weight:700;font-size:13px;line-height:1.3;min-width:0}
+.pdi-card-meta{font-size:10px;color:var(--text-muted);margin-top:2px}
+.pdi-badge{font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;flex-shrink:0}
+.pdi-badge.b-pend{background:rgba(253,203,110,.15);color:var(--warning)}
+.pdi-badge.b-conc{background:rgba(0,206,201,.15);color:var(--success)}
+.pdi-field{margin-bottom:8px}
+.pdi-field .pdi-flabel{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:4px}
+.pdi-field .pdi-flabel .material-icons-round{font-size:13px}
+.pdi-field .pdi-fval{font-size:12px;color:var(--text-secondary);margin-top:2px;white-space:pre-wrap;word-break:break-word}
+.pdi-card-foot{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.pdi-nota-origem{font-size:11px;font-weight:700;color:var(--danger);background:rgba(255,107,107,.12);padding:3px 8px;border-radius:6px}
+.pdi-card-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.pdi-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px}
+
+/* Botão CRIAR PDI injetado no card de avaliação */
+.btn-criar-pdi{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:8px;background:rgba(124,92,255,.12);color:var(--accent-light);border:1px dashed var(--accent);border-radius:6px;padding:8px;font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;transition:all .2s}
+.btn-criar-pdi:hover{background:var(--accent);color:#fff;border-style:solid}
+.btn-criar-pdi .material-icons-round{font-size:16px}
+.aval-pdi-tag{display:inline-flex;align-items:center;gap:4px;margin-top:8px;font-size:10px;font-weight:700;color:var(--warning)}
+.aval-pdi-tag.ok{color:var(--success)}
+.aval-pdi-tag .material-icons-round{font-size:14px}
+
+/* =========================================================
+   2. RECORRÊNCIA DE ERROS
+   ========================================================= */
+.rec-bar-row{display:flex;align-items:center;gap:10px;padding:7px 0}
+.rec-bar-label{width:150px;font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.rec-bar-track{flex:1;height:14px;background:var(--bg-input);border-radius:7px;overflow:hidden}
+.rec-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--info));border-radius:7px;transition:width .5s}
+.rec-bar-val{width:34px;text-align:right;font-size:12px;font-weight:800;color:var(--accent-light);flex-shrink:0}
+
+/* =========================================================
+   3. PRODUTIVIDADE DO MONITOR
+   ========================================================= */
+.prod-monitor-name{font-weight:700;color:var(--text-primary)}
+
+/* =========================================================
+   4. EVOLUÇÃO INDIVIDUAL — detalhe do operador
+   ========================================================= */
+.operadores-grid .operador-card{cursor:pointer}
+.opdetail-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;display:flex;align-items:center;justify-content:center;animation:fadeIn .2s}
+.opdetail-box{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);width:640px;max-width:94vw;max-height:88vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:fadeInUp .3s}
+.opdetail-header{display:flex;align-items:flex-start;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border);gap:10px}
+.opdetail-header h3{font-size:16px;font-weight:800;line-height:1.25}
+.opdetail-sub{font-size:11px;color:var(--text-muted);margin-top:3px}
+.opdetail-tabs{display:flex;gap:4px;padding:10px 16px 0;border-bottom:1px solid var(--border)}
+.opdetail-tab{display:inline-flex;align-items:center;gap:5px;background:none;border:none;border-bottom:2px solid transparent;color:var(--text-secondary);font-family:var(--font);font-size:13px;font-weight:600;padding:8px 12px;cursor:pointer;transition:all .2s}
+.opdetail-tab .material-icons-round{font-size:16px}
+.opdetail-tab:hover{color:var(--text-primary)}
+.opdetail-tab.active{color:var(--accent-light);border-bottom-color:var(--accent)}
+.opdetail-body{padding:20px}
+.evoind-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:16px}
+.evoind-kpi{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;text-align:center}
+.evoind-kpi-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+.evoind-kpi-val{font-size:20px;font-weight:800;margin-top:4px}
+.evoind-trend{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;margin-top:6px}
+.evoind-trend.up{background:rgba(0,206,201,.15);color:var(--success)}
+.evoind-trend.down{background:rgba(255,107,107,.15);color:var(--danger)}
+.evoind-trend.flat{background:rgba(139,143,167,.15);color:var(--text-secondary)}
+.evoind-weeks{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.evoind-week-row{display:flex;align-items:center;gap:10px}
+.evoind-week-name{width:78px;font-size:12px;color:var(--text-secondary);flex-shrink:0}
+.evoind-week-track{flex:1;height:10px;background:var(--bg-input);border-radius:5px;overflow:hidden}
+.evoind-week-fill{height:100%;border-radius:5px;transition:width .5s}
+.evoind-week-val{width:40px;text-align:right;font-size:12px;font-weight:800;flex-shrink:0}
+.opdetail-resumo-grid{display:flex;flex-direction:column;gap:8px}
+.opdetail-line{display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:1px solid var(--border)}
+.opdetail-line:last-child{border-bottom:none}
+.opdetail-line span:first-child{color:var(--text-muted)}
+.opdetail-line span:last-child{color:var(--text-primary);font-weight:700}
+
+/* =========================================================
+   5. RANKING DE EVOLUÇÃO — pódio premium
+   ========================================================= */
+.rkev-podio{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px}
+.rkev-podio h3{font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:16px;display:flex;align-items:center;gap:6px}
+.rkev-podio h3 .material-icons-round{font-size:18px;color:var(--warning)}
+.rkev-podio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.rkev-podio-card{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:18px 12px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;transition:transform .2s}
+.rkev-podio-card:hover{transform:translateY(-2px)}
+.rkev-podio-card.ouro{border-color:#ffd24a;background:linear-gradient(160deg,rgba(255,210,74,.12),var(--bg-input));box-shadow:0 0 0 1px rgba(255,210,74,.35),0 6px 20px rgba(255,210,74,.12)}
+.rkev-podio-card.prata{border-color:#cfd4dd;background:linear-gradient(160deg,rgba(207,212,221,.10),var(--bg-input));box-shadow:0 0 0 1px rgba(207,212,221,.3)}
+.rkev-podio-card.bronze{border-color:#d08a52;background:linear-gradient(160deg,rgba(208,138,82,.12),var(--bg-input));box-shadow:0 0 0 1px rgba(208,138,82,.3)}
+.rkev-medal{font-size:30px;line-height:1}
+.rkev-podio-pos{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.rkev-podio-card.ouro .rkev-podio-pos{color:#ffd24a}
+.rkev-podio-card.prata .rkev-podio-pos{color:#cfd4dd}
+.rkev-podio-card.bronze .rkev-podio-pos{color:#d08a52}
+.rkev-podio-nome{font-size:12px;font-weight:700;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.rkev-podio-delta{font-size:26px;font-weight:800;line-height:1.1}
+.rkev-podio-meta{font-size:10px;color:var(--text-muted)}
+.rkev-delta-pos{color:var(--success)}
+.rkev-delta-neg{color:var(--danger)}
+.rkev-delta-zero{color:var(--text-secondary)}
+
+/* =========================================================
+   RESPONSIVO (módulos adicionais)
+   ========================================================= */
+@media(max-width:1024px){.ext-charts-row{grid-template-columns:1fr}}
+@media(max-width:768px){
+    .ext-kpi-grid{grid-template-columns:repeat(2,1fr)}
+    .pdi-grid{grid-template-columns:1fr}
+    .rkev-podio-grid{grid-template-columns:1fr}
+    .rec-bar-label{width:110px}
+    .ext-toolbar{flex-direction:column;align-items:stretch}
+    .ext-filter-select{width:100%}
+}
+@media(max-width:480px){.ext-kpi-grid{grid-template-columns:1fr}.evoind-kpis{grid-template-columns:repeat(2,1fr)}}
