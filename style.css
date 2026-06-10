@@ -330,3 +330,40 @@ body{font-family:var(--font);background:var(--bg-primary);color:var(--text-prima
 @media(max-width:1024px){.charts-row{grid-template-columns:1fr}.avaliacoes-layout{grid-template-columns:1fr}.calib-charts-row{grid-template-columns:1fr}}
 @media(max-width:768px){.sidebar{transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}.main-content{margin-left:0}.menu-toggle{display:block}.kpi-grid{grid-template-columns:repeat(2,1fr)}.operadores-grid{grid-template-columns:1fr}.relatorios-grid{grid-template-columns:1fr}.calib-kpi-grid{grid-template-columns:repeat(2,1fr)}.operadores-toolbar{flex-direction:column;align-items:stretch}.operadores-toolbar .ops-search{max-width:none}.calib-table-filters{flex-direction:column;align-items:stretch}.calib-table-search{max-width:none}.calib-per-page{margin-left:0}}
 @media(max-width:480px){.kpi-grid{grid-template-columns:1fr}.login-card{padding:28px 20px}.tab-content{padding:16px}.calib-kpi-grid{grid-template-columns:1fr}}
+
+/* === AJUSTES: EXCLUSÃO EM MASSA + MELHORES NOTAS === */
+.op-mass-check{width:16px;height:16px;flex-shrink:0;accent-color:var(--accent);cursor:pointer}
+.ops-sel-count{font-size:11px;color:var(--text-muted);align-self:center;margin-left:auto}
+
+.calib-podio{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px}
+.calib-podio h3{font-size:13px;font-weight:700;color:var(--text-secondary);margin-bottom:16px;display:flex;align-items:center;gap:6px}
+.calib-podio h3 .material-icons-round{font-size:18px;color:var(--warning)}
+.podio-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.podio-card{background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:16px 12px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px;transition:transform .2s,border-color .2s;min-width:0}
+.podio-card:hover{transform:translateY(-2px)}
+.podio-card.podio-1{border-color:var(--warning);box-shadow:0 0 0 1px rgba(253,203,110,.3)}
+.podio-card.podio-2{border-color:rgba(139,143,167,.5)}
+.podio-card.podio-3{border-color:rgba(162,155,254,.5)}
+.podio-card.podio-4{border-color:rgba(116,185,255,.4)}
+.podio-medal{font-size:30px;line-height:1}
+.podio-pos{font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+.podio-nome{font-size:12px;font-weight:700;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.podio-nota{font-size:30px;font-weight:800;color:var(--success);line-height:1.1}
+.podio-meta{font-size:10px;color:var(--text-muted)}
+.podio-data{font-size:10px;color:var(--text-muted)}
+
+.calib-ranking .calib-rank-item.rank-top{background:rgba(108,92,231,.06);border-radius:8px;padding-left:8px;padding-right:8px}
+.calib-ranking .calib-rank-pos.medal{background:transparent;font-size:18px;width:28px}
+.calib-ranking .rank-main{flex:1;min-width:0}
+.calib-ranking .rank-sub{font-size:10px;color:var(--text-muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.calib-status.calib-st-exc{background:rgba(0,206,201,.15);color:var(--success)}
+.calib-status.calib-st-bom{background:rgba(116,185,255,.15);color:var(--info)}
+.calib-status.calib-st-reg{background:rgba(253,203,110,.15);color:var(--warning)}
+.calib-status.calib-st-aten{background:rgba(255,107,107,.15);color:var(--danger)}
+.calib-obs{font-size:10px;color:var(--text-muted);margin-top:4px;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calib-section-title{font-size:13px;font-weight:700;color:var(--text-secondary);margin:20px 0 12px;display:flex;align-items:center;gap:6px}
+.calib-section-title .material-icons-round{font-size:18px;color:var(--accent)}
+
+@media(max-width:768px){.podio-grid{grid-template-columns:repeat(2,1fr)}.calib-obs{max-width:140px}}
+@media(max-width:480px){.podio-grid{grid-template-columns:1fr}}

@@ -875,213 +875,217 @@ function opsPerPageChange(v){_opsPerPage=parseInt(v);_opsPage=1;renderOperadores
 function opsSearchChange(v){_opsSearch=v;_opsPage=1;renderOperadores()}
 
 
-/* ======= RENDER: CALIBRAGEM (DASHBOARD) ======= */
+/* ======= RENDER: CALIBRAGEM — MELHORES NOTAS (somente nota humana) ======= */
 var _calibPage=1;
 var _calibPerPage=10;
 var _calibSearch="";
 var _calibStatusFilter="";
 var _calibCarteiraFilter="";
 var _calibTurnoFilter="";
+
+function formatarData(d){if(!d)return "—";var p=(""+d).split("-");if(p.length===3)return p[2]+"/"+p[1]+"/"+p[0];return d}
+function escHtml(s){return (""+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function statusPorNota(n){
+    if(n>=90)return {label:"Excelente",cls:"calib-st-exc"};
+    if(n>=80)return {label:"Bom",cls:"calib-st-bom"};
+    if(n>=70)return {label:"Regular",cls:"calib-st-reg"};
+    return {label:"Atenção",cls:"calib-st-aten"};
+}
+function calibKpi(icon,label,value,color){
+    return '<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">'+icon+'</span>'+label+'</div><div class="calib-kpi-value" style="color:'+color+'">'+value+'</div></div>';
+}
+function renderPodio(ranking){
+    var medals=["🥇","🥈","🥉","⭐"];
+    var posClass=["podio-1","podio-2","podio-3","podio-4"];
+    var h='<div class="calib-podio"><h3><span class="material-icons-round">emoji_events</span>Pódio — Melhores Notas</h3><div class="podio-grid">';
+    if(ranking.length===0){
+        h+='<p style="color:var(--text-muted);font-size:12px">Sem avaliações registradas no mês.</p>';
+    }else{
+        var n=Math.min(4,ranking.length);
+        for(var i=0;i<n;i++){
+            var r=ranking[i];
+            h+='<div class="podio-card '+posClass[i]+'">';
+            h+='<div class="podio-medal">'+medals[i]+'</div>';
+            h+='<div class="podio-pos">Top '+(i+1)+'</div>';
+            h+='<div class="podio-nome" title="'+escHtml(r.nome)+'">'+r.nome+'</div>';
+            h+='<div class="podio-nota">'+r.nota.toFixed(0)+'</div>';
+            h+='<div class="podio-meta">'+r.carteira+' · '+r.turno+'</div>';
+            h+='<div class="podio-data">'+formatarData(r.data)+'</div>';
+            h+='</div>';
+        }
+    }
+    h+='</div></div>';
+    return h;
+}
+function renderRankingList(ranking){
+    var h='<div class="calib-ranking"><h3><span class="material-icons-round">leaderboard</span>Ranking — Melhores Notas</h3>';
+    if(ranking.length===0){h+='<p style="color:var(--text-muted);font-size:12px">Sem dados para ranking.</p></div>';return h}
+    var n=Math.min(20,ranking.length);
+    for(var i=0;i<n;i++){
+        var r=ranking[i];
+        var medal=i===0?"🥇":i===1?"🥈":i===2?"🥉":i===3?"⭐":"";
+        var topCls=i<4?' rank-top':'';
+        var posHtml=i<4?'<div class="calib-rank-pos medal">'+medal+'</div>':'<div class="calib-rank-pos">'+(i+1)+'</div>';
+        h+='<div class="calib-rank-item'+topCls+'">'+posHtml;
+        h+='<div class="rank-main"><div class="calib-rank-name" title="'+escHtml(r.nome)+'">'+r.nome+'</div>';
+        h+='<div class="rank-sub">'+r.carteira+' · '+r.turno+' · '+formatarData(r.data)+'</div></div>';
+        h+='<div class="calib-rank-diff" style="color:var(--success)">'+r.nota.toFixed(0)+'</div></div>';
+    }
+    h+='</div>';
+    return h;
+}
 function renderCalibragem(){
-    destroyChart("calibragem");destroyChart("calibComp");destroyChart("calibStatus");destroyChart("calibDivOp");
+    destroyChart("calibComp");destroyChart("calibStatus");destroyChart("calibDivOp");
+    destroyChart("topNotas");destroyChart("faixas");
     var md=getMonthData(),ops=loadOperadores();
-    var validNames={};
-    for(var i=0;i<ops.length;i++)validNames[ops[i].nome]=true;
+    var opInfo={};
+    for(var i=0;i<ops.length;i++)opInfo[ops[i].nome]={turno:ops[i].turno,carteira:ops[i].carteira||"—"};
     var allK=Object.keys(md);
-    var calibRows=[];
-    var somaIA=0,somaHum=0,somaDiff=0,cntCalib=0,cntDivergente=0,cntAtencao=0,cntCalibrado=0;
+    var rows=[];
     for(var i=0;i<allK.length;i++){
         var parts=allK[i].split("||");if(parts.length<2)continue;
         var nome=parts[1],data=parts[0];
-        if(!validNames[nome])continue;
+        if(!opInfo[nome])continue;
         var entry=md[allK[i]];
         if(entry.nota===null||entry.nota===undefined||entry.nota==="")continue;
-        var notaIA=parseFloat(entry.nota);
-        var notaHum=(entry.notaHumana!==null&&entry.notaHumana!==undefined&&entry.notaHumana!=="")?parseFloat(entry.notaHumana):notaIA;
-        var diff=Math.abs(notaIA-notaHum);
-        var status,statusClass;
-        if(diff<=5){status="Calibrado";statusClass="calibrado";cntCalibrado++}
-        else if(diff<=10){status="Atenção";statusClass="atencao";cntAtencao++}
-        else{status="Divergente";statusClass="divergente";cntDivergente++}
-        var turno="—",carteira="—";
-        for(var o=0;o<ops.length;o++){if(ops[o].nome===nome){turno=ops[o].turno;carteira=ops[o].carteira||"—";break}}
-        calibRows.push({nome:nome,carteira:carteira,turno:turno,data:data,notaIA:notaIA,notaHum:notaHum,diff:diff,status:status,statusClass:statusClass});
-        somaIA+=notaIA;somaHum+=notaHum;somaDiff+=diff;cntCalib++;
+        var nh=(entry.notaHumana!==null&&entry.notaHumana!==undefined&&entry.notaHumana!=="")?parseFloat(entry.notaHumana):parseFloat(entry.nota);
+        if(isNaN(nh))continue;
+        var st=statusPorNota(nh);
+        rows.push({nome:nome,carteira:opInfo[nome].carteira,turno:opInfo[nome].turno,data:data,nota:nh,obs:entry.obs||"",status:st.label,statusClass:st.cls});
     }
-    var mediaIA=cntCalib>0?(somaIA/cntCalib).toFixed(1):"—";
-    var mediaHum=cntCalib>0?(somaHum/cntCalib).toFixed(1):"—";
-    var diffMedia=cntCalib>0?(somaDiff/cntCalib).toFixed(1):"—";
-    var pctAlinhamento=cntCalib>0?((cntCalibrado/cntCalib)*100).toFixed(1):"0";
+    /* Estatísticas globais (todas as avaliações) */
+    var total=rows.length,soma=0,menor=null;
+    for(var i=0;i<rows.length;i++){soma+=rows[i].nota;if(menor===null||rows[i].nota<menor)menor=rows[i].nota}
+    var mediaHum=total>0?(soma/total).toFixed(1):"—";
+    /* Ranking por operador: melhor nota; empate -> data mais recente */
+    var bestByOp={};
+    for(var i=0;i<rows.length;i++){
+        var r=rows[i];var cur=bestByOp[r.nome];
+        if(!cur||r.nota>cur.nota||(r.nota===cur.nota&&r.data>cur.data))bestByOp[r.nome]=r;
+    }
+    var ranking=[];
+    for(var bk in bestByOp)ranking.push(bestByOp[bk]);
+    ranking.sort(function(a,b){if(b.nota!==a.nota)return b.nota-a.nota;return a.data<b.data?1:(a.data>b.data?-1:0)});
+    var ops90=0;for(var i=0;i<ranking.length;i++){if(ranking[i].nota>=90)ops90++}
+    /* Distribuição por faixa (todas as avaliações) */
+    var faixas={"90-100":0,"80-89":0,"70-79":0,"60-69":0,"<60":0};
+    for(var i=0;i<rows.length;i++){
+        var v=rows[i].nota;
+        if(v>=90)faixas["90-100"]++;else if(v>=80)faixas["80-89"]++;else if(v>=70)faixas["70-79"]++;else if(v>=60)faixas["60-69"]++;else faixas["<60"]++;
+    }
+    function rankNota(idx){return ranking.length>idx?ranking[idx].nota.toFixed(1):"—"}
+    var html='';
     /* KPIs */
-    var html='<div class="calib-kpi-grid">';
-    html+='<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">fact_check</span>Calibradas</div><div class="calib-kpi-value" style="color:var(--accent-light)">'+cntCalib+'</div></div>';
-    html+='<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">smart_toy</span>Média IA</div><div class="calib-kpi-value" style="color:var(--info)">'+mediaIA+'</div></div>';
-    html+='<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">person</span>Média Humana</div><div class="calib-kpi-value" style="color:var(--success)">'+mediaHum+'</div></div>';
-    html+='<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">swap_vert</span>Dif. Média</div><div class="calib-kpi-value" style="color:var(--warning)">'+diffMedia+'</div></div>';
-    html+='<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">warning</span>Divergentes</div><div class="calib-kpi-value" style="color:var(--danger)">'+cntDivergente+'</div></div>';
-    html+='<div class="calib-kpi"><div class="calib-kpi-label"><span class="material-icons-round">verified</span>Alinhamento</div><div class="calib-kpi-value" style="color:var(--success)">'+pctAlinhamento+'%</div></div>';
+    html+='<div class="calib-kpi-grid">';
+    html+=calibKpi("emoji_events","Melhor Nota do Mês",rankNota(0),"var(--warning)");
+    html+=calibKpi("military_tech","Segunda Melhor Nota",rankNota(1),"var(--text-secondary)");
+    html+=calibKpi("workspace_premium","Terceira Melhor Nota",rankNota(2),"var(--accent-light)");
+    html+=calibKpi("star","Quarta Melhor Nota",rankNota(3),"var(--info)");
+    html+=calibKpi("functions","Média Geral Humana",mediaHum,"var(--success)");
+    html+=calibKpi("fact_check","Total de Avaliações",total,"var(--accent-light)");
+    html+=calibKpi("verified","Operadores com Nota 90+",ops90,"var(--success)");
+    html+=calibKpi("trending_down","Menor Nota do Mês",menor!==null?menor.toFixed(1):"—","var(--danger)");
     html+='</div>';
+    /* Pódio */
+    html+=renderPodio(ranking);
     /* Gráficos */
     html+='<div class="calib-charts-row">';
-    html+='<div class="calib-chart-card"><h3><span class="material-icons-round">bar_chart</span>Nota IA × Nota Humana</h3><canvas id="chartCalibComp"></canvas></div>';
-    html+='<div class="calib-chart-card"><h3><span class="material-icons-round">donut_large</span>Status de Calibração</h3><canvas id="chartCalibStatus"></canvas></div>';
+    html+='<div class="calib-chart-card"><h3><span class="material-icons-round">bar_chart</span>Top 10 Melhores Notas</h3><canvas id="chartTopNotas"></canvas></div>';
+    html+='<div class="calib-chart-card"><h3><span class="material-icons-round">equalizer</span>Distribuição por Faixa de Nota</h3><canvas id="chartFaixas"></canvas></div>';
     html+='</div>';
-    html+='<div class="calib-charts-row">';
-    html+='<div class="calib-chart-card"><h3><span class="material-icons-round">leaderboard</span>Divergências por Operador</h3><canvas id="chartCalibDivOp"></canvas></div>';
     /* Ranking */
-    html+='<div class="calib-ranking"><h3><span class="material-icons-round">emoji_events</span>Ranking — Maior Divergência</h3>';
-    var opDivMap={};
-    for(var i=0;i<calibRows.length;i++){
-        var r=calibRows[i];
-        if(!opDivMap[r.nome])opDivMap[r.nome]={soma:0,cnt:0};
-        opDivMap[r.nome].soma+=r.diff;
-        opDivMap[r.nome].cnt++;
-    }
-    var opDivArr=[];
-    for(var n in opDivMap){opDivArr.push({nome:n,media:(opDivMap[n].soma/opDivMap[n].cnt).toFixed(1)})}
-    opDivArr.sort(function(a,b){return parseFloat(b.media)-parseFloat(a.media)});
-    var topN=Math.min(10,opDivArr.length);
-    if(topN===0){html+='<p style="color:var(--text-muted);font-size:12px">Sem dados de calibração.</p>'}
-    for(var i=0;i<topN;i++){
-        var d=opDivArr[i];
-        var dm=parseFloat(d.media);
-        var rc=dm>10?"var(--danger)":dm>5?"var(--warning)":"var(--success)";
-        var bgc=dm>10?"rgba(255,107,107,.15)":dm>5?"rgba(253,203,110,.15)":"rgba(0,206,201,.15)";
-        html+='<div class="calib-rank-item"><div class="calib-rank-pos" style="background:'+bgc+';color:'+rc+'">'+(i+1)+'</div>';
-        html+='<div class="calib-rank-name" title="'+d.nome+'">'+d.nome+'</div>';
-        html+='<div class="calib-rank-diff" style="color:'+rc+'">±'+d.media+'</div></div>';
-    }
-    html+='</div></div>';
-    /* Filtros da tabela */
+    html+=renderRankingList(ranking);
+    /* Tabela detalhada */
     var carteiras={},turnos={};
-    for(var i=0;i<calibRows.length;i++){carteiras[calibRows[i].carteira]=true;turnos[calibRows[i].turno]=true}
+    for(var i=0;i<rows.length;i++){carteiras[rows[i].carteira]=true;turnos[rows[i].turno]=true}
+    html+='<div class="calib-section-title"><span class="material-icons-round">table_rows</span>Detalhamento das Avaliações</div>';
     html+='<div class="calib-table-filters">';
-    html+='<input type="text" class="calib-table-search" id="calibSearchInput" placeholder="Buscar operador..." value="'+(_calibSearch||'')+'" oninput="calibSearchChange(this.value)">';
+    html+='<input type="text" class="calib-table-search" id="calibSearchInput" placeholder="Buscar operador..." value="'+escHtml(_calibSearch||'')+'" oninput="calibSearchChange(this.value)">';
     html+='<select class="calib-table-filter-select" id="calibStatusFilter" onchange="calibStatusFilterChange(this.value)">';
     html+='<option value="">Todos os Status</option>';
-    html+='<option value="Calibrado"'+(_calibStatusFilter==="Calibrado"?" selected":"")+'>Calibrado</option>';
-    html+='<option value="Atenção"'+(_calibStatusFilter==="Atenção"?" selected":"")+'>Atenção</option>';
-    html+='<option value="Divergente"'+(_calibStatusFilter==="Divergente"?" selected":"")+'>Divergente</option>';
+    var bands=["Excelente","Bom","Regular","Atenção"];
+    for(var bi=0;bi<bands.length;bi++)html+='<option value="'+bands[bi]+'"'+(_calibStatusFilter===bands[bi]?" selected":"")+'>'+bands[bi]+'</option>';
     html+='</select>';
-    html+='<select class="calib-table-filter-select" id="calibCarteiraFilter" onchange="calibCarteiraFilterChange(this.value)">';
-    html+='<option value="">Todas as Carteiras</option>';
-    for(var c in carteiras){html+='<option value="'+c+'"'+(_calibCarteiraFilter===c?" selected":"")+'>'+c+'</option>'}
+    html+='<select class="calib-table-filter-select" id="calibCarteiraFilter" onchange="calibCarteiraFilterChange(this.value)"><option value="">Todas as Carteiras</option>';
+    for(var c in carteiras)html+='<option value="'+c+'"'+(_calibCarteiraFilter===c?" selected":"")+'>'+c+'</option>';
     html+='</select>';
-    html+='<select class="calib-table-filter-select" id="calibTurnoFilter" onchange="calibTurnoFilterChange(this.value)">';
-    html+='<option value="">Todos os Períodos</option>';
-    for(var t in turnos){html+='<option value="'+t+'"'+(_calibTurnoFilter===t?" selected":"")+'>'+t+'</option>'}
+    html+='<select class="calib-table-filter-select" id="calibTurnoFilter" onchange="calibTurnoFilterChange(this.value)"><option value="">Todos os Períodos</option>';
+    for(var t in turnos)html+='<option value="'+t+'"'+(_calibTurnoFilter===t?" selected":"")+'>'+t+'</option>';
     html+='</select>';
     html+='<div class="calib-per-page"><span>Exibir:</span><select id="calibPerPageSelect" onchange="calibPerPageChange(this.value)">';
-    var calibPPOpts=[10,20,50,0],calibPPLabels=["10","20","50","Todos"];
-    for(var p=0;p<calibPPOpts.length;p++){html+='<option value="'+calibPPOpts[p]+'"'+(calibPPOpts[p]===_calibPerPage?' selected':'')+'>'+calibPPLabels[p]+'</option>'}
-    html+='</select></div>';
-    html+='</div>';
-    /* Filtrar calibRows para tabela */
-    var filtered=calibRows.slice();
+    var ppO=[10,20,50,0],ppL=["10","20","50","Todos"];
+    for(var p=0;p<ppO.length;p++)html+='<option value="'+ppO[p]+'"'+(ppO[p]===_calibPerPage?' selected':'')+'>'+ppL[p]+'</option>';
+    html+='</select></div></div>';
+    var filtered=rows.slice();
     if(_calibSearch){var term=_calibSearch.toUpperCase();filtered=filtered.filter(function(r){return r.nome.toUpperCase().indexOf(term)!==-1})}
     if(_calibStatusFilter){filtered=filtered.filter(function(r){return r.status===_calibStatusFilter})}
     if(_calibCarteiraFilter){filtered=filtered.filter(function(r){return r.carteira===_calibCarteiraFilter})}
     if(_calibTurnoFilter){filtered=filtered.filter(function(r){return r.turno===_calibTurnoFilter})}
-    filtered.sort(function(a,b){return b.diff-a.diff});
-    /* Paginação da tabela */
-    var totalFiltered=filtered.length;
-    var perPage=_calibPerPage===0?totalFiltered:_calibPerPage;
-    if(perPage<1)perPage=totalFiltered||1;
-    var totalPages=Math.max(1,Math.ceil(totalFiltered/perPage));
+    filtered.sort(function(a,b){if(b.nota!==a.nota)return b.nota-a.nota;return a.data<b.data?1:(a.data>b.data?-1:0)});
+    var totalF=filtered.length;
+    var perPage=_calibPerPage===0?totalF:_calibPerPage;
+    if(perPage<1)perPage=totalF||1;
+    var totalPages=Math.max(1,Math.ceil(totalF/perPage));
     if(_calibPage>totalPages)_calibPage=totalPages;
     if(_calibPage<1)_calibPage=1;
-    var startIdx=((_calibPage-1)*perPage);
-    var endIdx=Math.min(startIdx+perPage,totalFiltered);
+    var startIdx=(_calibPage-1)*perPage,endIdx=Math.min(startIdx+perPage,totalF);
     var pageRows=filtered.slice(startIdx,endIdx);
-    /* Tabela detalhada */
-    html+='<div class="calib-table-wrapper"><table><thead><tr><th>Operador</th><th>Carteira</th><th>Período</th><th>Data</th><th>Nota IA</th><th>Nota Humana</th><th>Diferença</th><th>Status</th></tr></thead><tbody>';
-    if(pageRows.length===0){
-        html+='<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">Nenhuma avaliação encontrada.</td></tr>';
-    }
+    html+='<div class="calib-table-wrapper"><table><thead><tr><th>Operador</th><th>Carteira</th><th>Período</th><th>Data</th><th>Nota Humana</th><th>Ponto de Atenção / Status</th></tr></thead><tbody>';
+    if(pageRows.length===0)html+='<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Nenhuma avaliação encontrada.</td></tr>';
     for(var i=0;i<pageRows.length;i++){
         var r=pageRows[i];
-        html+='<tr><td style="font-weight:600;color:var(--text-primary)">'+r.nome+'</td><td>'+r.carteira+'</td><td>'+r.turno+'</td><td>'+r.data+'</td>';
-        html+='<td style="font-weight:700;color:var(--info)">'+r.notaIA.toFixed(1)+'</td>';
-        html+='<td style="font-weight:700;color:var(--success)">'+r.notaHum.toFixed(1)+'</td>';
-        html+='<td style="font-weight:700;color:'+(r.diff>10?'var(--danger)':r.diff>5?'var(--warning)':'var(--success)')+'">'+r.diff.toFixed(1)+'</td>';
-        html+='<td><span class="calib-status '+r.statusClass+'">'+r.status+'</span></td></tr>';
+        html+='<tr><td style="font-weight:600;color:var(--text-primary)">'+r.nome+'</td><td>'+r.carteira+'</td><td>'+r.turno+'</td><td>'+formatarData(r.data)+'</td>';
+        html+='<td style="font-weight:700;color:var(--success)">'+r.nota.toFixed(1)+'</td>';
+        html+='<td><span class="calib-status '+r.statusClass+'">'+r.status+'</span>'+(r.obs?'<div class="calib-obs" title="'+escHtml(r.obs)+'">'+escHtml(r.obs)+'</div>':'')+'</td></tr>';
     }
     html+='</tbody></table></div>';
-    /* Paginação */
     html+='<div class="calib-pagination">';
-    html+='<div class="ops-page-info">Mostrando '+(totalFiltered>0?(startIdx+1):0)+' a '+endIdx+' de '+totalFiltered+' avaliações</div>';
+    html+='<div class="ops-page-info">Mostrando '+(totalF>0?(startIdx+1):0)+' a '+endIdx+' de '+totalF+' avaliações</div>';
     if(totalPages>1){
         html+='<div class="ops-page-btns">';
         html+='<button onclick="calibGoPage(1)"'+((_calibPage===1)?' disabled':'')+'>«</button>';
         html+='<button onclick="calibGoPage('+(_calibPage-1)+')"'+((_calibPage===1)?' disabled':'')+'>‹</button>';
-        var startP=Math.max(1,_calibPage-2);
-        var endP=Math.min(totalPages,_calibPage+2);
-        if(startP>1){html+='<button disabled>…</button>'}
-        for(var pg=startP;pg<=endP;pg++){
-            html+='<button onclick="calibGoPage('+pg+')"'+(pg===_calibPage?' class="active"':'')+'>'+pg+'</button>';
-        }
-        if(endP<totalPages){html+='<button disabled>…</button>'}
+        var startP=Math.max(1,_calibPage-2),endP=Math.min(totalPages,_calibPage+2);
+        if(startP>1)html+='<button disabled>…</button>';
+        for(var pg=startP;pg<=endP;pg++)html+='<button onclick="calibGoPage('+pg+')"'+(pg===_calibPage?' class="active"':'')+'>'+pg+'</button>';
+        if(endP<totalPages)html+='<button disabled>…</button>';
         html+='<button onclick="calibGoPage('+(_calibPage+1)+')"'+((_calibPage===totalPages)?' disabled':'')+'>›</button>';
         html+='<button onclick="calibGoPage('+totalPages+')"'+((_calibPage===totalPages)?' disabled':'')+'>»</button>';
         html+='</div>';
     }
     html+='</div>';
     ge("calibragemContent").innerHTML=html;
-    renderCalibCharts(calibRows,cntCalibrado,cntAtencao,cntDivergente,opDivArr);
+    renderCalibCharts(ranking,faixas);
 }
-/* Calibragem pagination & filter functions */
 function calibGoPage(p){_calibPage=p;renderCalibragem()}
 function calibPerPageChange(v){_calibPerPage=parseInt(v);_calibPage=1;renderCalibragem()}
 function calibSearchChange(v){_calibSearch=v;_calibPage=1;renderCalibragem()}
 function calibStatusFilterChange(v){_calibStatusFilter=v;_calibPage=1;renderCalibragem()}
 function calibCarteiraFilterChange(v){_calibCarteiraFilter=v;_calibPage=1;renderCalibragem()}
 function calibTurnoFilterChange(v){_calibTurnoFilter=v;_calibPage=1;renderCalibragem()}
-function renderCalibCharts(rows,cntCalibrado,cntAtencao,cntDivergente,opDivArr){
-    /* Gráfico 1: Nota IA x Nota Humana — barras agrupadas por operador (top 15) */
-    var opAvg={};
-    for(var i=0;i<rows.length;i++){
-        var r=rows[i];
-        if(!opAvg[r.nome])opAvg[r.nome]={somaIA:0,somaH:0,cnt:0};
-        opAvg[r.nome].somaIA+=r.notaIA;opAvg[r.nome].somaH+=r.notaHum;opAvg[r.nome].cnt++;
+function renderCalibCharts(ranking,faixas){
+    var topN=Math.min(10,ranking.length);
+    var labels=[],data=[],colors=[];
+    for(var i=0;i<topN;i++){
+        labels.push(ranking[i].nome.split(" ").slice(0,2).join(" "));
+        data.push(ranking[i].nota);
+        var v=ranking[i].nota;
+        colors.push(v>=90?"#00cec9":v>=80?"#74b9ff":v>=70?"#fdcb6e":"#ff6b6b");
     }
-    var compLabels=[],compIA=[],compHum=[];
-    var opNames=Object.keys(opAvg);
-    opNames.sort(function(a,b){return(opAvg[b].somaIA/opAvg[b].cnt)-(opAvg[a].somaIA/opAvg[a].cnt)});
-    var showN=Math.min(15,opNames.length);
-    for(var i=0;i<showN;i++){
-        var n=opNames[i],avg=opAvg[n];
-        compLabels.push(n.split(" ").slice(0,2).join(" "));
-        compIA.push((avg.somaIA/avg.cnt).toFixed(1));
-        compHum.push((avg.somaH/avg.cnt).toFixed(1));
-    }
-    var ctx1=ge("chartCalibComp");
-    if(ctx1){
-        chartInstances["calibComp"]=new Chart(ctx1.getContext("2d"),{type:"bar",data:{labels:compLabels,datasets:[
-            {label:"Nota IA",data:compIA,backgroundColor:"rgba(116,185,255,.5)",borderColor:"#74b9ff",borderWidth:1},
-            {label:"Nota Humana",data:compHum,backgroundColor:"rgba(0,206,201,.5)",borderColor:"#00cec9",borderWidth:1}
-        ]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{labels:{color:"#8b8fa7",font:{family:"Plus Jakarta Sans",size:11}}}},
-            scales:{x:{ticks:{color:"#5c6078",font:{size:9},maxRotation:45},grid:{color:"#2a2d3e"}},y:{beginAtZero:true,max:100,ticks:{color:"#5c6078",font:{size:10}},grid:{color:"#2a2d3e"}}}}});
-    }
-    /* Gráfico 2: Status doughnut */
-    var ctx2=ge("chartCalibStatus");
-    if(ctx2){
-        chartInstances["calibStatus"]=new Chart(ctx2.getContext("2d"),{type:"doughnut",data:{labels:["Calibrado","Atenção","Divergente"],datasets:[{data:[cntCalibrado,cntAtencao,cntDivergente],backgroundColor:["#00cec9","#fdcb6e","#ff6b6b"],borderWidth:0}]},
-            options:{responsive:true,maintainAspectRatio:true,cutout:"65%",plugins:{legend:{labels:{color:"#8b8fa7",font:{family:"Plus Jakarta Sans",size:11}}}}}});
-    }
-    /* Gráfico 3: Divergências por operador — top 10 horizontal */
-    var divLabels=[],divData=[],divColors=[];
-    var topDiv=Math.min(10,opDivArr.length);
-    for(var i=0;i<topDiv;i++){
-        divLabels.push(opDivArr[i].nome.split(" ").slice(0,2).join(" "));
-        divData.push(parseFloat(opDivArr[i].media));
-        var dm=parseFloat(opDivArr[i].media);
-        divColors.push(dm>10?"#ff6b6b":dm>5?"#fdcb6e":"#00cec9");
-    }
-    var ctx3=ge("chartCalibDivOp");
-    if(ctx3){
-        chartInstances["calibDivOp"]=new Chart(ctx3.getContext("2d"),{type:"bar",data:{labels:divLabels,datasets:[{label:"Dif. Média",data:divData,backgroundColor:divColors,borderWidth:0}]},
+    var c1=ge("chartTopNotas");
+    if(c1){
+        chartInstances["topNotas"]=new Chart(c1.getContext("2d"),{type:"bar",data:{labels:labels,datasets:[{label:"Nota Humana",data:data,backgroundColor:colors,borderWidth:0}]},
             options:{responsive:true,maintainAspectRatio:true,indexAxis:"y",plugins:{legend:{display:false}},
-                scales:{x:{beginAtZero:true,ticks:{color:"#5c6078",font:{size:10}},grid:{color:"#2a2d3e"}},y:{ticks:{color:"#8b8fa7",font:{size:10}},grid:{display:false}}}}});
+            scales:{x:{beginAtZero:true,max:100,ticks:{color:"#5c6078",font:{size:10}},grid:{color:"#2a2d3e"}},y:{ticks:{color:"#8b8fa7",font:{size:10}},grid:{display:false}}}}});
+    }
+    var fLabels=["90-100","80-89","70-79","60-69","Abaixo de 60"];
+    var fData=[faixas["90-100"],faixas["80-89"],faixas["70-79"],faixas["60-69"],faixas["<60"]];
+    var fColors=["#00cec9","#74b9ff","#a29bfe","#fdcb6e","#ff6b6b"];
+    var c2=ge("chartFaixas");
+    if(c2){
+        chartInstances["faixas"]=new Chart(c2.getContext("2d"),{type:"bar",data:{labels:fLabels,datasets:[{label:"Avaliações",data:fData,backgroundColor:fColors,borderWidth:0}]},
+            options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},
+            scales:{x:{ticks:{color:"#8b8fa7",font:{size:10}},grid:{display:false}},y:{beginAtZero:true,ticks:{color:"#5c6078",font:{size:10},stepSize:1},grid:{color:"#2a2d3e"}}}}});
     }
 }
 
@@ -1230,12 +1234,19 @@ function renderConfiguracoes(){
     /* OPERADORES — Todos os cargos podem gerenciar operadores */
     if(podeGerenciarOperadores()){
         html+='<div class="config-section"><h3><span class="material-icons-round">people</span> Operadores</h3>';
-        html+='<p>Adicione, edite ou remova operadores. Alterações refletem em todo o sistema.</p>';
-        html+='<div class="config-toolbar"><button class="btn-primary" onclick="modalAddOperador()"><span class="material-icons-round" style="font-size:18px">person_add</span> Adicionar Operador</button></div>';
+        html+='<p>Adicione, edite ou remova operadores. Use a seleção para excluir vários de uma vez. Alterações refletem em todo o sistema.</p>';
+        html+='<div class="config-toolbar">';
+        html+='<button class="btn-primary" onclick="modalAddOperador()"><span class="material-icons-round" style="font-size:18px">person_add</span> Adicionar Operador</button>';
+        html+='<button class="btn-sm" onclick="opsSelecionarTodos()"><span class="material-icons-round">done_all</span> Selecionar todos</button>';
+        html+='<button class="btn-sm" onclick="opsDesmarcarTodos()"><span class="material-icons-round">remove_done</span> Desmarcar todos</button>';
+        html+='<button class="btn-danger" onclick="confirmarExcluirOpsSelecionados()"><span class="material-icons-round" style="font-size:16px">delete_sweep</span> Excluir selecionados</button>';
+        html+='<span class="ops-sel-count" id="opsSelCount">Nenhum selecionado</span>';
+        html+='</div>';
         html+='<div id="cfgOpsList">';
         for(var i=0;i<ops.length;i++){
             var sn=ops[i].nome.replace(/'/g,"\'");
-            html+='<div class="cfg-row"><div class="cfg-row-info"><div class="cfg-row-name">'+ops[i].nome+'</div><div class="cfg-row-sub">'+(ops[i].carteira||"—")+' · '+ops[i].turno+'</div></div>';
+            var nomeAttr=ops[i].nome.replace(/"/g,'&quot;');
+            html+='<div class="cfg-row"><input type="checkbox" class="op-mass-check" data-nome="'+nomeAttr+'" onchange="atualizarContadorSelecao()"><div class="cfg-row-info"><div class="cfg-row-name">'+ops[i].nome+'</div><div class="cfg-row-sub">'+(ops[i].carteira||"—")+' · '+ops[i].turno+'</div></div>';
             html+='<div class="cfg-row-actions">';
             html+='<button class="btn-sm" onclick="modalEditarOperador('+i+')"><span class="material-icons-round">edit</span> Editar</button>';
             html+='<button class="btn-sm danger" onclick="confirmarRemoverOp(\''+sn+'\')"><span class="material-icons-round">delete</span> Remover</button>';
@@ -1430,6 +1441,56 @@ function removerOp(nome){
     }
     setMonthData(md);
     fecharModal();syncAfterOpChange();
+}
+
+/* CONFIG: OPERADORES — EXCLUSÃO EM MASSA */
+var _opsParaExcluir=[];
+function getOpsSelecionados(){
+    var checks=qsa(".op-mass-check"),names=[];
+    for(var i=0;i<checks.length;i++){if(checks[i].checked)names.push(checks[i].getAttribute("data-nome"))}
+    return names;
+}
+function atualizarContadorSelecao(){
+    var n=getOpsSelecionados().length,el=ge("opsSelCount");
+    if(el)el.textContent=n>0?(n+" selecionado"+(n>1?"s":"")):"Nenhum selecionado";
+}
+function opsSelecionarTodos(){
+    var c=qsa(".op-mass-check");for(var i=0;i<c.length;i++)c[i].checked=true;atualizarContadorSelecao();
+}
+function opsDesmarcarTodos(){
+    var c=qsa(".op-mass-check");for(var i=0;i<c.length;i++)c[i].checked=false;atualizarContadorSelecao();
+}
+function confirmarExcluirOpsSelecionados(){
+    if(!checkOperadorPermission())return;
+    var names=getOpsSelecionados();
+    if(names.length===0){alert("Selecione ao menos um operador para excluir.");return}
+    _opsParaExcluir=names;
+    var lista=names.slice(0,10).map(function(n){return "• "+n}).join("<br>");
+    if(names.length>10)lista+="<br>… e mais "+(names.length-10)+" operador(es)";
+    abrirModal("Excluir Operadores Selecionados",
+        '<p style="margin-bottom:14px;color:var(--text-secondary)">Deseja realmente excluir os operadores selecionados? <strong style="color:var(--text-primary)">('+names.length+')</strong></p>'+
+        '<div style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;color:var(--text-secondary);max-height:170px;overflow-y:auto">'+lista+'</div>'+
+        '<p style="margin-bottom:16px;color:var(--text-muted);font-size:12px">As avaliações vinculadas a estes operadores no mês atual também serão removidas.</p>'+
+        '<button class="btn-primary" style="background:var(--danger)" onclick="excluirOpsSelecionados()">Confirmar Exclusão</button>');
+}
+function excluirOpsSelecionados(){
+    if(!checkOperadorPermission()){fecharModal();return}
+    var names=_opsParaExcluir||[];
+    if(names.length===0){fecharModal();return}
+    var nameSet={};for(var i=0;i<names.length;i++)nameSet[names[i]]=true;
+    var ops=loadOperadores();
+    ops=ops.filter(function(o){return !nameSet[o.nome]});
+    saveOperadores(ops);
+    /* Remover avaliações vinculadas no mês atual */
+    var md=getMonthData(),keys=Object.keys(md);
+    for(var i=0;i<keys.length;i++){
+        var parts=keys[i].split("||");
+        if(parts.length>=2&&nameSet[parts[1]])delete md[keys[i]];
+    }
+    setMonthData(md);
+    _opsParaExcluir=[];
+    fecharModal();
+    syncAfterOpChange();
 }
 
 /* CONFIG: RESET */
